@@ -32,7 +32,7 @@ Tasks are derived from `blueprint.md`. Each task follows the TDD lifecycle.
 ---
 
 ### TASK-002: Load FHIR package and explore SD structure
-- **Status:** PENDING
+- **Status:** COMPLETED
 - **Model:** Sonnet
 - **Branch:** `feature/002-fhir-package-loading`
 - **Depends on:** TASK-001
