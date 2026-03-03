@@ -47,7 +47,7 @@ Tasks are derived from `blueprint.md`. Each task follows the TDD lifecycle.
 ---
 
 ### TASK-003: SD→EZF serializer for Patient
-- **Status:** PENDING
+- **Status:** COMPLETED
 - **Model:** Opus
 - **Branch:** `feature/003-ezf-serializer`
 - **Depends on:** TASK-002
