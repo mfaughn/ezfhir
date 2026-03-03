@@ -9,6 +9,7 @@ import {
   getDatatypeEZF,
   getExamples,
   getSearchParams,
+  listIGs,
 } from "../src/server.js";
 import { searchSpec } from "../src/pipeline/searchIndex.js";
 
@@ -203,6 +204,16 @@ describe("MCP Server", () => {
       const results = searchSpec("Patient");
       expect(results.length).toBeGreaterThan(0);
       expect(results[0].name).toBe("Patient");
+    });
+  });
+
+  describe("listIGs", () => {
+    it("lists the default R5 core package", () => {
+      const packages = listIGs();
+      expect(packages.length).toBeGreaterThan(0);
+      expect(packages[0].name).toBe("hl7.fhir.r5.core");
+      expect(packages[0].version).toBe("5.0.0");
+      expect(packages[0].artifactCount).toBeGreaterThan(100);
     });
   });
 

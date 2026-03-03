@@ -41,6 +41,14 @@ let datatypeIndexCache: string | null = null;
 /** Shared package loader instance. */
 let loader: FPLPackageLoader | null = null;
 
+/** Track loaded packages for list_igs. */
+export interface LoadedPackage {
+  name: string;
+  version: string;
+  artifactCount: number;
+}
+const loadedPackages: LoadedPackage[] = [];
+
 /**
  * Initializes the package loader and loads the R5 core package.
  */
@@ -48,8 +56,43 @@ export async function initLoader(): Promise<FPLPackageLoader> {
   if (loader) return loader;
   loader = await createPackageLoader();
   await loadPackage(loader, DEFAULT_SCOPE, DEFAULT_VERSION);
+  const count = loader.findResourceInfos("*", { scope: DEFAULT_SCOPE }).length;
+  loadedPackages.push({ name: DEFAULT_SCOPE, version: DEFAULT_VERSION, artifactCount: count });
   buildSearchIndex(loader, DEFAULT_SCOPE);
   return loader;
+}
+
+/**
+ * Loads an additional IG package into the server.
+ */
+export async function loadIG(packageName: string, version: string): Promise<LoadedPackage> {
+  if (!loader) throw new Error("Loader not initialized");
+
+  // Check if already loaded
+  const existing = loadedPackages.find(p => p.name === packageName && p.version === version);
+  if (existing) return existing;
+
+  await loadPackage(loader, packageName, version);
+  const count = loader.findResourceInfos("*", { scope: packageName }).length;
+  const pkg: LoadedPackage = { name: packageName, version, artifactCount: count };
+  loadedPackages.push(pkg);
+
+  // Rebuild search index to include new package
+  buildSearchIndex(loader, DEFAULT_SCOPE);
+
+  // Clear caches since new package may affect results
+  ezfCache.clear();
+  resourceIndexCache = null;
+  datatypeIndexCache = null;
+
+  return pkg;
+}
+
+/**
+ * Lists all loaded packages.
+ */
+export function listIGs(): LoadedPackage[] {
+  return [...loadedPackages];
 }
 
 /**
@@ -474,6 +517,59 @@ export function createServer(): McpServer {
           isError: true,
         };
       }
+    }
+  );
+
+  server.registerTool(
+    "load_ig",
+    {
+      description:
+        "Load a FHIR Implementation Guide package from the registry. " +
+        "Makes the IG's resources, profiles, and extensions available for lookup. " +
+        "Package format: 'package.name' with version (e.g., 'hl7.fhir.us.core' version '8.0.1').",
+      inputSchema: {
+        package_name: z.string().describe("FHIR package name (e.g., 'hl7.fhir.us.core')"),
+        version: z.string().describe("Package version (e.g., '8.0.1')"),
+      },
+    },
+    async ({ package_name, version }) => {
+      try {
+        const pkg = await loadIG(package_name, version);
+        return {
+          content: [{
+            type: "text" as const,
+            text: `Loaded ${pkg.name}@${pkg.version} (${pkg.artifactCount} artifacts)`,
+          }],
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text" as const, text: `Error loading package: ${message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    "list_igs",
+    {
+      description: "List all loaded FHIR packages with their versions and artifact counts.",
+      inputSchema: {},
+    },
+    async () => {
+      const packages = listIGs();
+      if (packages.length === 0) {
+        return {
+          content: [{ type: "text" as const, text: "No packages loaded" }],
+        };
+      }
+      const text = packages
+        .map((p) => `${p.name}@${p.version} (${p.artifactCount} artifacts)`)
+        .join("\n");
+      return {
+        content: [{ type: "text" as const, text: `Loaded packages:\n${text}` }],
+      };
     }
   );
 
