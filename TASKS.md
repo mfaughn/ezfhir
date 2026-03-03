@@ -63,7 +63,7 @@ Tasks are derived from `blueprint.md`. Each task follows the TDD lifecycle.
 ---
 
 ### TASK-004: EZF parser
-- **Status:** PENDING
+- **Status:** COMPLETED
 - **Model:** Haiku
 - **Branch:** `feature/004-ezf-parser`
 - **Depends on:** TASK-003 (needs EZF output to test against)
