@@ -313,6 +313,132 @@ export function getSearchParams(resourceName: string): SearchParamInfo[] {
   return results.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+export interface BindingInfo {
+  path: string;
+  strength: string;
+  valueSet: string;
+}
+
+/**
+ * Gets all coded bindings for a resource.
+ */
+export function getBindings(resourceName: string): BindingInfo[] {
+  const ezfText = getEZF(resourceName);
+  const doc = parse(ezfText);
+  if (!doc.elements) return [];
+
+  const bindings: BindingInfo[] = [];
+  collectBindings(doc.elements, resourceName, bindings);
+  return bindings;
+}
+
+function collectBindings(
+  elements: EZFElement[],
+  prefix: string,
+  bindings: BindingInfo[]
+): void {
+  for (const el of elements) {
+    const path = `${prefix}.${el.path}`;
+    if (el.binding) {
+      bindings.push({
+        path,
+        strength: el.binding.strength,
+        valueSet: el.binding.valueSet,
+      });
+    }
+    if (el.children) {
+      collectBindings(el.children, path, bindings);
+    }
+  }
+}
+
+export interface ReferenceInfo {
+  path: string;
+  targets: string[];
+}
+
+/**
+ * Gets all Reference-typed elements with their allowed targets.
+ */
+export function getReferences(resourceName: string): ReferenceInfo[] {
+  const ezfText = getEZF(resourceName);
+  const doc = parse(ezfText);
+  if (!doc.elements) return [];
+
+  const refs: ReferenceInfo[] = [];
+  collectReferences(doc.elements, resourceName, refs);
+  return refs;
+}
+
+function collectReferences(
+  elements: EZFElement[],
+  prefix: string,
+  refs: ReferenceInfo[]
+): void {
+  for (const el of elements) {
+    const path = `${prefix}.${el.path}`;
+    const refTypes = el.types.filter((t) => t.code === "Reference");
+    if (refTypes.length > 0) {
+      const targets = refTypes
+        .flatMap((t) => t.targetProfile || [])
+        .filter(Boolean);
+      refs.push({ path, targets });
+    }
+    if (el.children) {
+      collectReferences(el.children, path, refs);
+    }
+  }
+}
+
+export interface ConstraintInfo {
+  key: string;
+  severity: string;
+  human: string;
+  expression?: string;
+  path: string;
+}
+
+/**
+ * Gets all FHIRPath constraints/invariants for a resource.
+ */
+export function getConstraints(resourceName: string): ConstraintInfo[] {
+  if (!loader) throw new Error("Loader not initialized");
+
+  const sd = getStructureDefinition(loader, resourceName);
+  if (!sd) return [];
+
+  const snapshot = (sd as Record<string, unknown>).snapshot as
+    | { element: Array<Record<string, unknown>> }
+    | undefined;
+  if (!snapshot?.element) return [];
+
+  const constraints: ConstraintInfo[] = [];
+  for (const el of snapshot.element) {
+    const path = el.path as string;
+    const elConstraints = el.constraint as
+      | Array<{ key: string; severity: string; human: string; expression?: string }>
+      | undefined;
+    if (!elConstraints) continue;
+    for (const c of elConstraints) {
+      constraints.push({
+        key: c.key,
+        severity: c.severity,
+        human: c.human,
+        expression: c.expression,
+        path,
+      });
+    }
+  }
+
+  // Deduplicate by key (constraints inherited from base show up multiple times)
+  const seen = new Set<string>();
+  return constraints.filter((c) => {
+    if (seen.has(c.key)) return false;
+    seen.add(c.key);
+    return true;
+  });
+}
+
 /**
  * Creates and configures the MCP server instance.
  */
@@ -662,6 +788,107 @@ export function createServer(): McpServer {
         const result = diffStructureDefinitions(leftSD, rightSD);
         return {
           content: [{ type: "text" as const, text: renderDiff(result) }],
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text" as const, text: `Error: ${message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    "get_bindings",
+    {
+      description:
+        "Get all coded element bindings for a FHIR resource. " +
+        "Returns element paths, binding strengths (required/extensible/preferred/example), and value set URLs.",
+      inputSchema: {
+        resource: z.string().describe("FHIR resource name (e.g., 'Patient')"),
+      },
+    },
+    async ({ resource }) => {
+      try {
+        const bindings = getBindings(resource);
+        if (bindings.length === 0) {
+          return {
+            content: [{ type: "text" as const, text: `No bindings found for "${resource}"` }],
+          };
+        }
+        const text = bindings
+          .map((b) => `${b.path} : ${b.strength} ${b.valueSet}`)
+          .join("\n");
+        return {
+          content: [{ type: "text" as const, text: `Bindings for ${resource} (${bindings.length}):\n${text}` }],
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text" as const, text: `Error: ${message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    "get_references",
+    {
+      description:
+        "Get all Reference-typed elements in a FHIR resource with their allowed target types.",
+      inputSchema: {
+        resource: z.string().describe("FHIR resource name (e.g., 'Patient')"),
+      },
+    },
+    async ({ resource }) => {
+      try {
+        const refs = getReferences(resource);
+        if (refs.length === 0) {
+          return {
+            content: [{ type: "text" as const, text: `No reference elements found in "${resource}"` }],
+          };
+        }
+        const text = refs
+          .map((r) => `${r.path} → ${r.targets.length > 0 ? r.targets.join("|") : "(any)"}`)
+          .join("\n");
+        return {
+          content: [{ type: "text" as const, text: `References in ${resource} (${refs.length}):\n${text}` }],
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text" as const, text: `Error: ${message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    "get_constraints",
+    {
+      description:
+        "Get all FHIRPath invariants/constraints defined on a FHIR resource. " +
+        "Returns constraint keys, human descriptions, severity, and FHIRPath expressions.",
+      inputSchema: {
+        resource: z.string().describe("FHIR resource name (e.g., 'Patient')"),
+      },
+    },
+    async ({ resource }) => {
+      try {
+        const constraints = getConstraints(resource);
+        if (constraints.length === 0) {
+          return {
+            content: [{ type: "text" as const, text: `No constraints found for "${resource}"` }],
+          };
+        }
+        const text = constraints
+          .map((c) => `${c.key} (${c.severity}): ${c.human}${c.expression ? ` [${c.expression}]` : ""}`)
+          .join("\n");
+        return {
+          content: [{ type: "text" as const, text: `Constraints for ${resource} (${constraints.length}):\n${text}` }],
         };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

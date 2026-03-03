@@ -9,6 +9,9 @@ import {
   getDatatypeEZF,
   getExamples,
   getSearchParams,
+  getBindings,
+  getReferences,
+  getConstraints,
   listIGs,
 } from "../src/server.js";
 import { searchSpec } from "../src/pipeline/searchIndex.js";
@@ -214,6 +217,60 @@ describe("MCP Server", () => {
       expect(packages[0].name).toBe("hl7.fhir.r5.core");
       expect(packages[0].version).toBe("5.0.0");
       expect(packages[0].artifactCount).toBeGreaterThan(100);
+    });
+  });
+
+  describe("getBindings", () => {
+    it("returns bindings for Patient", () => {
+      const bindings = getBindings("Patient");
+      expect(bindings.length).toBeGreaterThan(0);
+      const genderBinding = bindings.find((b) => b.path.includes("gender"));
+      expect(genderBinding).toBeDefined();
+      expect(genderBinding!.strength).toBe("required");
+    });
+
+    it("includes valueSet URIs", () => {
+      const bindings = getBindings("Patient");
+      const withVS = bindings.filter((b) => b.valueSet);
+      expect(withVS.length).toBeGreaterThan(0);
+    });
+
+    it("throws for unknown resource", () => {
+      expect(() => getBindings("NotAResource")).toThrow("not found");
+    });
+  });
+
+  describe("getReferences", () => {
+    it("returns references for Patient", () => {
+      const refs = getReferences("Patient");
+      expect(refs.length).toBeGreaterThan(0);
+      const gpRef = refs.find((r) => r.path.includes("generalPractitioner"));
+      expect(gpRef).toBeDefined();
+      expect(gpRef!.targets.length).toBeGreaterThan(0);
+    });
+
+    it("throws for unknown resource", () => {
+      expect(() => getReferences("NotAResource")).toThrow("not found");
+    });
+  });
+
+  describe("getConstraints", () => {
+    it("returns constraints for Patient", () => {
+      const constraints = getConstraints("Patient");
+      expect(constraints.length).toBeGreaterThan(0);
+    });
+
+    it("includes key, severity, and human description", () => {
+      const constraints = getConstraints("Patient");
+      const first = constraints[0];
+      expect(first.key).toBeTruthy();
+      expect(first.severity).toBeTruthy();
+      expect(first.human).toBeTruthy();
+    });
+
+    it("returns empty array for unknown resource", () => {
+      const constraints = getConstraints("NotAResource");
+      expect(constraints).toEqual([]);
     });
   });
 
