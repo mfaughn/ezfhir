@@ -79,7 +79,7 @@ Tasks are derived from `blueprint.md`. Each task follows the TDD lifecycle.
 ---
 
 ### TASK-005: Round-trip verifier for Patient
-- **Status:** PENDING
+- **Status:** COMPLETED
 - **Model:** Sonnet
 - **Branch:** `feature/005-round-trip-verifier`
 - **Depends on:** TASK-003, TASK-004
