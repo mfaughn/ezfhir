@@ -23,6 +23,7 @@ import {
   generateResourceIndex,
   generateDatatypeIndex,
 } from "./pipeline/indexGenerator.js";
+import { buildSearchIndex, searchSpec } from "./pipeline/searchIndex.js";
 import type { EZFElement } from "./converter/types.js";
 
 export const VERSION = "0.1.0";
@@ -47,6 +48,7 @@ export async function initLoader(): Promise<FPLPackageLoader> {
   if (loader) return loader;
   loader = await createPackageLoader();
   await loadPackage(loader, DEFAULT_SCOPE, DEFAULT_VERSION);
+  buildSearchIndex(loader, DEFAULT_SCOPE);
   return loader;
 }
 
@@ -260,6 +262,41 @@ export function createServer(): McpServer {
   );
 
   // ─── Tools ─────────────────────────────────────────────────────
+
+  server.registerTool(
+    "search_spec",
+    {
+      description:
+        "Search the FHIR specification for resources, datatypes, elements, and search parameters. " +
+        "Returns ranked results by relevance. Use this to discover what FHIR resources are available.",
+      inputSchema: {
+        query: z.string().describe("Search query (e.g., 'Patient', 'blood pressure', 'medication')"),
+        limit: z.number().optional().describe("Max results to return (default 10)"),
+      },
+    },
+    async ({ query, limit }) => {
+      try {
+        const results = searchSpec(query, limit);
+        if (results.length === 0) {
+          return {
+            content: [{ type: "text" as const, text: `No results found for "${query}"` }],
+          };
+        }
+        const text = results
+          .map((r, i) => `${i + 1}. ${r.name} (${r.type}) — ${r.description.slice(0, 100)}`)
+          .join("\n");
+        return {
+          content: [{ type: "text" as const, text }],
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text" as const, text: `Error: ${message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
 
   server.registerTool(
     "lookup_element",

@@ -8,6 +8,7 @@ import {
   getDatatypeIndex,
   getDatatypeEZF,
 } from "../src/server.js";
+import { searchSpec } from "../src/pipeline/searchIndex.js";
 
 describe("MCP Server", () => {
   beforeAll(async () => {
@@ -130,6 +131,14 @@ describe("MCP Server", () => {
     it("shows children list for backbone elements", () => {
       const result = lookupElement("Patient", "contact");
       expect(result).toContain("Children:");
+    });
+  });
+
+  describe("search_spec (via searchSpec)", () => {
+    it("finds Patient via search index", () => {
+      const results = searchSpec("Patient");
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].name).toBe("Patient");
     });
   });
 

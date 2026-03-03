@@ -40,7 +40,9 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
+    "@types/lunr": "^2.3.7",
     "fhir-package-loader": "^2.2.3",
+    "lunr": "^2.3.9",
     "zod": "^4.3.6"
   }
 }
