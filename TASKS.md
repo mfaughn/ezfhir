@@ -18,7 +18,7 @@ Tasks are derived from `blueprint.md`. Each task follows the TDD lifecycle.
 ## Phase 0: Spike & Validation
 
 ### TASK-001: Project scaffolding
-- **Status:** PENDING
+- **Status:** COMPLETED
 - **Model:** Sonnet
 - **Branch:** `feature/001-project-scaffolding`
 - **Acceptance Criteria:**

@@ -1,0 +1,39 @@
+{
+  "name": "ezfhir",
+  "version": "0.1.0",
+  "description": "AI-first MCP server for token-efficient FHIR specification access",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "ezfhir": "dist/index.js",
+    "ezfhir-generate": "dist/pipeline/generate.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/ test/",
+    "benchmark": "vitest run test/benchmark/",
+    "eval": "node dist/eval/run.js",
+    "generate": "node dist/pipeline/generate.js"
+  },
+  "keywords": [
+    "fhir",
+    "mcp",
+    "ai",
+    "healthcare",
+    "interoperability",
+    "hl7"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0",
+    "@types/node": "^20.0.0"
+  }
+}
