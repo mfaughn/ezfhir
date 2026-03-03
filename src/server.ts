@@ -24,6 +24,7 @@ import {
   generateDatatypeIndex,
 } from "./pipeline/indexGenerator.js";
 import { buildSearchIndex, searchSpec } from "./pipeline/searchIndex.js";
+import { compareProfiles, renderDiff, diffStructureDefinitions } from "./pipeline/sdDiff.js";
 import type { EZFElement } from "./converter/types.js";
 
 export const VERSION = "0.1.0";
@@ -570,6 +571,105 @@ export function createServer(): McpServer {
       return {
         content: [{ type: "text" as const, text: `Loaded packages:\n${text}` }],
       };
+    }
+  );
+
+  server.registerTool(
+    "compare_profiles",
+    {
+      description:
+        "Compare two FHIR StructureDefinitions element by element. " +
+        "Detects cardinality, type, binding, must-support, slicing, and other changes. " +
+        "Use to compare a profile against its base, or two profiles against each other.",
+      inputSchema: {
+        left: z.string().describe("Name of the first (base) StructureDefinition"),
+        right: z.string().describe("Name of the second (constrained) StructureDefinition"),
+        scope: z.string().optional().describe("Package scope to search in"),
+      },
+    },
+    async ({ left, right, scope: toolScope }) => {
+      try {
+        if (!loader) throw new Error("Loader not initialized");
+        const result = compareProfiles(loader, left, right, toolScope);
+        if (!result) {
+          return {
+            content: [{ type: "text" as const, text: `Could not find one or both profiles: "${left}", "${right}"` }],
+            isError: true,
+          };
+        }
+        return {
+          content: [{ type: "text" as const, text: renderDiff(result) }],
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text" as const, text: `Error: ${message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    "compare_versions",
+    {
+      description:
+        "Compare the same FHIR resource across two package versions. " +
+        "Useful for understanding changes between FHIR R4 and R5, or between IG versions.",
+      inputSchema: {
+        resource: z.string().describe("Resource or profile name to compare"),
+        left_package: z.string().describe("First package name (e.g., 'hl7.fhir.r4.core')"),
+        left_version: z.string().describe("First package version"),
+        right_package: z.string().describe("Second package name (e.g., 'hl7.fhir.r5.core')"),
+        right_version: z.string().describe("Second package version"),
+      },
+    },
+    async ({ resource, left_package, left_version, right_package, right_version }) => {
+      try {
+        if (!loader) throw new Error("Loader not initialized");
+
+        // Ensure both packages are loaded
+        await loadIG(left_package, left_version);
+        await loadIG(right_package, right_version);
+
+        const leftSD = loader.findResourceJSON(resource, {
+          type: ["StructureDefinition"],
+          scope: left_package,
+        }) as Record<string, unknown> | undefined;
+
+        const rightSD = loader.findResourceJSON(resource, {
+          type: ["StructureDefinition"],
+          scope: right_package,
+        }) as Record<string, unknown> | undefined;
+
+        if (!leftSD && !rightSD) {
+          return {
+            content: [{ type: "text" as const, text: `"${resource}" not found in either package` }],
+            isError: true,
+          };
+        }
+        if (!leftSD) {
+          return {
+            content: [{ type: "text" as const, text: `"${resource}" only exists in ${right_package}@${right_version} (new resource)` }],
+          };
+        }
+        if (!rightSD) {
+          return {
+            content: [{ type: "text" as const, text: `"${resource}" only exists in ${left_package}@${left_version} (removed resource)` }],
+          };
+        }
+
+        const result = diffStructureDefinitions(leftSD, rightSD);
+        return {
+          content: [{ type: "text" as const, text: renderDiff(result) }],
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text" as const, text: `Error: ${message}` }],
+          isError: true,
+        };
+      }
     }
   );
 
