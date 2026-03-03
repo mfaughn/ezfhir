@@ -4,6 +4,9 @@ import {
   getEZF,
   lookupElement,
   createServer,
+  getResourceIndex,
+  getDatatypeIndex,
+  getDatatypeEZF,
 } from "../src/server.js";
 
 describe("MCP Server", () => {
@@ -20,15 +23,73 @@ describe("MCP Server", () => {
       expect(ezf).toContain("gender");
     });
 
+    it("includes search params in output", () => {
+      const ezf = getEZF("Patient");
+      expect(ezf).toContain("@search");
+    });
+
+    it("includes operations in output", () => {
+      const ezf = getEZF("Patient");
+      expect(ezf).toContain("@operations");
+      expect(ezf).toContain("$match");
+    });
+
     it("caches results on second call", () => {
       const first = getEZF("Patient");
       const second = getEZF("Patient");
-      // Same reference means cache hit
       expect(first).toBe(second);
     });
 
     it("throws for unknown resource", () => {
       expect(() => getEZF("NotARealResource")).toThrow("not found");
+    });
+  });
+
+  describe("getResourceIndex", () => {
+    it("returns categorized resource index", () => {
+      const index = getResourceIndex();
+      expect(index).toContain("# FHIR Resource Index");
+      expect(index).toContain("## Administration");
+      expect(index).toContain("Patient");
+    });
+
+    it("caches on second call", () => {
+      const first = getResourceIndex();
+      const second = getResourceIndex();
+      expect(first).toBe(second);
+    });
+  });
+
+  describe("getDatatypeIndex", () => {
+    it("returns datatype index with complex and primitive types", () => {
+      const index = getDatatypeIndex();
+      expect(index).toContain("## Complex Types");
+      expect(index).toContain("## Primitive Types");
+      expect(index).toContain("Identifier");
+      expect(index).toContain("string");
+    });
+  });
+
+  describe("getDatatypeEZF", () => {
+    it("returns EZF for a complex datatype", () => {
+      const ezf = getDatatypeEZF("HumanName");
+      expect(ezf).toContain("@datatype HumanName");
+      expect(ezf).toContain("@elements");
+    });
+
+    it("returns EZF for a primitive datatype", () => {
+      const ezf = getDatatypeEZF("string");
+      expect(ezf).toContain("@datatype string");
+    });
+
+    it("throws for unknown datatype", () => {
+      expect(() => getDatatypeEZF("NotAType")).toThrow("not found");
+    });
+
+    it("caches results", () => {
+      const first = getDatatypeEZF("Identifier");
+      const second = getDatatypeEZF("Identifier");
+      expect(first).toBe(second);
     });
   });
 

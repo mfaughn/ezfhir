@@ -2,10 +2,11 @@
  * EZFhir MCP Server.
  *
  * Provides token-efficient FHIR specification access via MCP protocol.
- * Phase 0: serves Patient compact file and lookup_element tool.
+ * Phase 2: serves resource/datatype indices, individual resources,
+ * datatypes, and lookup tools.
  */
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import {
@@ -16,12 +17,25 @@ import {
 } from "./pipeline/packageLoader.js";
 import { serialize } from "./converter/serializer.js";
 import { parse } from "./converter/parser.js";
+import { extractSearchParams } from "./pipeline/searchParamExtractor.js";
+import { extractOperations } from "./pipeline/operationExtractor.js";
+import {
+  generateResourceIndex,
+  generateDatatypeIndex,
+} from "./pipeline/indexGenerator.js";
 import type { EZFElement } from "./converter/types.js";
 
 export const VERSION = "0.1.0";
 
+const DEFAULT_SCOPE = "hl7.fhir.r5.core";
+const DEFAULT_VERSION = "5.0.0";
+
 /** Cache of serialized EZF text per resource name. */
 const ezfCache = new Map<string, string>();
+
+/** Cache for indices. */
+let resourceIndexCache: string | null = null;
+let datatypeIndexCache: string | null = null;
 
 /** Shared package loader instance. */
 let loader: FPLPackageLoader | null = null;
@@ -32,15 +46,15 @@ let loader: FPLPackageLoader | null = null;
 export async function initLoader(): Promise<FPLPackageLoader> {
   if (loader) return loader;
   loader = await createPackageLoader();
-  await loadPackage(loader, "hl7.fhir.r5.core", "5.0.0");
+  await loadPackage(loader, DEFAULT_SCOPE, DEFAULT_VERSION);
   return loader;
 }
 
 /**
- * Gets the EZF text for a resource, using cache.
+ * Gets the EZF text for a resource, with search params and operations.
  */
 export function getEZF(resourceName: string): string {
-  const cached = ezfCache.get(resourceName);
+  const cached = ezfCache.get(`resource:${resourceName}`);
   if (cached) return cached;
 
   if (!loader) throw new Error("Loader not initialized");
@@ -48,14 +62,52 @@ export function getEZF(resourceName: string): string {
   const sd = getStructureDefinition(loader, resourceName);
   if (!sd) throw new Error(`Resource "${resourceName}" not found`);
 
-  const ezfText = serialize(sd);
-  ezfCache.set(resourceName, ezfText);
+  const searchParams = extractSearchParams(loader, resourceName, DEFAULT_SCOPE);
+  const operations = extractOperations(loader, resourceName, DEFAULT_SCOPE);
+  const ezfText = serialize(sd, { searchParams, operations });
+  ezfCache.set(`resource:${resourceName}`, ezfText);
   return ezfText;
 }
 
 /**
+ * Gets the EZF text for a datatype.
+ */
+export function getDatatypeEZF(datatypeName: string): string {
+  const cached = ezfCache.get(`datatype:${datatypeName}`);
+  if (cached) return cached;
+
+  if (!loader) throw new Error("Loader not initialized");
+
+  const sd = getStructureDefinition(loader, datatypeName);
+  if (!sd) throw new Error(`Datatype "${datatypeName}" not found`);
+
+  const ezfText = serialize(sd);
+  ezfCache.set(`datatype:${datatypeName}`, ezfText);
+  return ezfText;
+}
+
+/**
+ * Gets the categorized resource index.
+ */
+export function getResourceIndex(): string {
+  if (resourceIndexCache) return resourceIndexCache;
+  if (!loader) throw new Error("Loader not initialized");
+  resourceIndexCache = generateResourceIndex(loader, DEFAULT_SCOPE, DEFAULT_VERSION);
+  return resourceIndexCache;
+}
+
+/**
+ * Gets the datatype index.
+ */
+export function getDatatypeIndex(): string {
+  if (datatypeIndexCache) return datatypeIndexCache;
+  if (!loader) throw new Error("Loader not initialized");
+  datatypeIndexCache = generateDatatypeIndex(loader, DEFAULT_SCOPE);
+  return datatypeIndexCache;
+}
+
+/**
  * Looks up an element by dot-path in a resource's EZF representation.
- * Returns the matching element line(s) with context.
  */
 export function lookupElement(
   resourceName: string,
@@ -68,7 +120,6 @@ export function lookupElement(
     return `No elements found in ${resourceName}`;
   }
 
-  // Search for the element by path (supports dotted paths like "contact.name")
   const pathParts = elementPath.split(".");
   let elements: EZFElement[] = doc.elements;
   let found: EZFElement | undefined;
@@ -93,9 +144,6 @@ export function lookupElement(
   return formatElement(found, resourceName, elementPath);
 }
 
-/**
- * Formats an element for display.
- */
 function formatElement(
   el: EZFElement,
   resourceName: string,
@@ -146,7 +194,6 @@ function formatElement(
 
 /**
  * Creates and configures the MCP server instance.
- * Separated from startup for testability.
  */
 export function createServer(): McpServer {
   const server = new McpServer({
@@ -154,27 +201,66 @@ export function createServer(): McpServer {
     version: VERSION,
   });
 
-  // Resource: serve EZF compact files
+  // ─── Static Resources ──────────────────────────────────────────
+
   server.registerResource(
-    "fhir-resource-patient",
-    "fhir://resource/Patient",
+    "fhir-resource-index",
+    "fhir://index/resources",
     {
-      description:
-        "FHIR Patient resource in compact EZF format (~60x smaller than JSON)",
+      description: "Categorized FHIR resource index listing all available resources",
       mimeType: "text/plain",
     },
     async (uri) => ({
-      contents: [
-        {
-          uri: uri.href,
-          mimeType: "text/plain",
-          text: getEZF("Patient"),
-        },
-      ],
+      contents: [{ uri: uri.href, mimeType: "text/plain", text: getResourceIndex() }],
     })
   );
 
-  // Tool: lookup_element
+  server.registerResource(
+    "fhir-datatype-index",
+    "fhir://index/datatypes",
+    {
+      description: "FHIR datatype index listing complex and primitive types",
+      mimeType: "text/plain",
+    },
+    async (uri) => ({
+      contents: [{ uri: uri.href, mimeType: "text/plain", text: getDatatypeIndex() }],
+    })
+  );
+
+  // ─── Resource Templates ────────────────────────────────────────
+
+  server.registerResource(
+    "fhir-resource",
+    new ResourceTemplate("fhir://resource/{name}", { list: undefined }),
+    {
+      description: "FHIR resource definition in compact EZF format (~60x smaller than JSON). Includes elements, search params, and operations.",
+      mimeType: "text/plain",
+    },
+    async (uri, params) => {
+      const name = params.name as string;
+      return {
+        contents: [{ uri: uri.href, mimeType: "text/plain", text: getEZF(name) }],
+      };
+    }
+  );
+
+  server.registerResource(
+    "fhir-datatype",
+    new ResourceTemplate("fhir://datatype/{name}", { list: undefined }),
+    {
+      description: "FHIR datatype definition in compact EZF format",
+      mimeType: "text/plain",
+    },
+    async (uri, params) => {
+      const name = params.name as string;
+      return {
+        contents: [{ uri: uri.href, mimeType: "text/plain", text: getDatatypeEZF(name) }],
+      };
+    }
+  );
+
+  // ─── Tools ─────────────────────────────────────────────────────
+
   server.registerTool(
     "lookup_element",
     {
