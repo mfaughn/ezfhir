@@ -265,101 +265,31 @@ Tasks are derived from `blueprint.md`. Each task follows the TDD lifecycle.
 
 ## Phase 2: MCP Server — Resources & Navigation
 
-### TASK-019: MCP resource — spec index
-- **Status:** PENDING
-- **Model:** Haiku
-- **Branch:** `feature/019-mcp-index-resource`
-- **Depends on:** Phase 1 complete
-- **Acceptance Criteria:**
-  - [ ] fhir://index serves categorized resource listing
-  - [ ] Returns correct content for R5 core
-
----
-
-### TASK-020: MCP resource — individual artifacts
-- **Status:** PENDING
-- **Model:** Haiku
-- **Branch:** `feature/020-mcp-artifact-resources`
-- **Depends on:** Phase 1 complete
-- **Acceptance Criteria:**
-  - [ ] fhir://resource/{name} serves resource EZF
-  - [ ] fhir://datatype/{name} serves datatype EZF
-  - [ ] fhir://profile/{pkg}/{id} serves profile EZF
-  - [ ] fhir://ig/{pkg}/index serves IG index
+### TASK-019 & TASK-020: MCP resources (index + individual artifacts)
+- **Status:** COMPLETED
+- **Branch:** `feature/019-020-mcp-resources`
+- **Notes:** fhir://index/resources, fhir://index/datatypes, fhir://resource/{name}, fhir://datatype/{name} — all with caching. Resource EZF now includes search params and operations.
 
 ---
 
 ### TASK-021: search_spec tool
-- **Status:** PENDING
-- **Model:** Sonnet
+- **Status:** COMPLETED
 - **Branch:** `feature/021-search-spec`
-- **Depends on:** Phase 1 compact files
-- **Acceptance Criteria:**
-  - [ ] lunr.js index built over resource names, element paths, descriptions, search params, operations
-  - [ ] "Patient" returns Patient as top result
-  - [ ] "blood pressure" returns Observation-related results
-  - [ ] Empty results for nonsense queries (not an error)
+- **Notes:** lunr.js full-text index over resource names, descriptions, elements, search params. 9 tests. Optimized from 88s to 4s by pre-building search param lookup.
 
 ---
 
-### TASK-022: lookup_element tool
-- **Status:** PENDING
-- **Model:** Haiku
-- **Branch:** `feature/022-lookup-element`
-- **Depends on:** Phase 1 complete
-- **Acceptance Criteria:**
-  - [ ] Resolves simple paths (Patient.birthDate)
-  - [ ] Resolves nested paths (Patient.contact.relationship)
-  - [ ] Resolves choice types (Observation.value[x])
-  - [ ] Returns clear error for invalid paths
-  - [ ] Supports IG-scoped lookup
+### TASK-022, TASK-023, TASK-024: lookup_element + get_examples + get_search_params
+- **Status:** COMPLETED
+- **Branch:** `feature/022-024-mcp-tools`
+- **Notes:** lookup_element now handles choice types (value[x]) and clear error paths. get_examples returns resource instances from loaded packages. get_search_params returns all params with type/expression. 30 server tests.
 
 ---
 
-### TASK-023: get_examples tool
-- **Status:** PENDING
-- **Model:** Sonnet
-- **Branch:** `feature/023-get-examples`
-- **Depends on:** Phase 1 complete
-- **Acceptance Criteria:**
-  - [ ] Returns example instances from spec packages
-  - [ ] Respects count parameter
-  - [ ] Returns examples for common resources (Patient, Observation)
-
----
-
-### TASK-024: get_search_params tool
-- **Status:** PENDING
-- **Model:** Haiku
-- **Branch:** `feature/024-get-search-params`
-- **Depends on:** Phase 1 complete
-- **Acceptance Criteria:**
-  - [ ] Returns all search params for a resource with types and expressions
-  - [ ] Correct for Patient (17 params)
-
----
-
-### TASK-025: load_ig tool
-- **Status:** PENDING
-- **Model:** Sonnet
-- **Branch:** `feature/025-load-ig`
-- **Depends on:** Phase 1 pipeline
-- **Acceptance Criteria:**
-  - [ ] Downloads package from registry.fhir.org
-  - [ ] Runs generation pipeline
-  - [ ] New IG resources available immediately
-  - [ ] Clear error for invalid package IDs
-
----
-
-### TASK-026: list_igs tool
-- **Status:** PENDING
-- **Model:** Haiku
-- **Branch:** `feature/026-list-igs`
-- **Depends on:** Phase 1 complete
-- **Acceptance Criteria:**
-  - [ ] Lists loaded packages with version and artifact counts
-  - [ ] Updates after load_ig adds new packages
+### TASK-025 & TASK-026: load_ig + list_igs
+- **Status:** COMPLETED
+- **Branch:** `feature/025-026-ig-management`
+- **Notes:** load_ig loads additional FHIR packages, clears caches, prevents duplicates. list_igs tracks loaded packages with artifact counts. 31 server tests, 296 total.
 
 ---
 
