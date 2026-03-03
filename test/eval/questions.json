@@ -1,0 +1,109 @@
+[
+  {
+    "id": "q1",
+    "category": "cardinality",
+    "question": "What is the cardinality of Patient.identifier in the FHIR R5 specification?",
+    "referenceAnswer": "Patient.identifier has cardinality 0..* (zero to many). It is an array of Identifier elements.",
+    "keyFacts": [
+      "min is 0",
+      "max is *",
+      "type is Identifier"
+    ],
+    "hallucinationRisk": "low"
+  },
+  {
+    "id": "q2",
+    "category": "binding",
+    "question": "What value set is bound to Patient.gender in FHIR R5, and what is the binding strength?",
+    "referenceAnswer": "Patient.gender is bound to http://hl7.org/fhir/ValueSet/administrative-gender with a binding strength of 'required'. The allowed codes are: male, female, other, unknown.",
+    "keyFacts": [
+      "valueSet is http://hl7.org/fhir/ValueSet/administrative-gender",
+      "binding strength is required",
+      "codes include male, female, other, unknown"
+    ],
+    "hallucinationRisk": "medium"
+  },
+  {
+    "id": "q3",
+    "category": "structure",
+    "question": "What are the child elements of Patient.contact in FHIR R5? List all of them.",
+    "referenceAnswer": "Patient.contact is a BackboneElement with children: relationship, name, telecom, address, gender, organization, period.",
+    "keyFacts": [
+      "contact is a BackboneElement",
+      "has child: relationship",
+      "has child: name",
+      "has child: telecom",
+      "has child: address",
+      "has child: gender",
+      "has child: organization",
+      "has child: period"
+    ],
+    "hallucinationRisk": "high"
+  },
+  {
+    "id": "q4",
+    "category": "flags",
+    "question": "Which elements in the Patient resource are marked as isModifier in FHIR R5?",
+    "referenceAnswer": "The Patient elements marked as isModifier (?!) are: active, deceased[x], and link.type.",
+    "keyFacts": [
+      "active is a modifier",
+      "deceased[x] is a modifier",
+      "link.type is a modifier"
+    ],
+    "hallucinationRisk": "high"
+  },
+  {
+    "id": "q5",
+    "category": "reference-targets",
+    "question": "What resource types can Patient.generalPractitioner reference in FHIR R5?",
+    "referenceAnswer": "Patient.generalPractitioner can reference Organization, Practitioner, and PractitionerRole.",
+    "keyFacts": [
+      "can reference Organization",
+      "can reference Practitioner",
+      "can reference PractitionerRole",
+      "exactly 3 target types"
+    ],
+    "hallucinationRisk": "medium"
+  },
+  {
+    "id": "q6",
+    "category": "choice-type",
+    "question": "What types can Patient.deceased[x] hold in FHIR R5, and is this element required?",
+    "referenceAnswer": "Patient.deceased[x] is a choice type that can be boolean or dateTime. It has cardinality 0..1, meaning it is optional.",
+    "keyFacts": [
+      "can be boolean",
+      "can be dateTime",
+      "cardinality is 0..1 (optional)",
+      "is a modifier element"
+    ],
+    "hallucinationRisk": "low"
+  },
+  {
+    "id": "q7",
+    "category": "cross-resource",
+    "question": "What is the cardinality and type of Observation.value[x] in FHIR R5? List all possible types.",
+    "referenceAnswer": "Observation.value[x] has cardinality 0..1 and can be one of: Quantity, CodeableConcept, string, boolean, integer, Range, Ratio, SampledData, time, dateTime, Period, Attachment.",
+    "keyFacts": [
+      "cardinality is 0..1",
+      "Quantity is a valid type",
+      "CodeableConcept is a valid type",
+      "string is a valid type",
+      "boolean is a valid type",
+      "SampledData is a valid type"
+    ],
+    "hallucinationRisk": "high"
+  },
+  {
+    "id": "q8",
+    "category": "contentReference",
+    "question": "In the Questionnaire resource, how does Questionnaire.item.item work? What kind of element is it?",
+    "referenceAnswer": "Questionnaire.item.item is a contentReference that refers back to Questionnaire.item, allowing recursive nesting of questionnaire items. It has cardinality 0..*.",
+    "keyFacts": [
+      "uses contentReference",
+      "references Questionnaire.item",
+      "enables recursive nesting",
+      "cardinality is 0..*"
+    ],
+    "hallucinationRisk": "high"
+  }
+]

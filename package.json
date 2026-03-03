@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/ test/",
     "benchmark": "vitest run --config vitest.benchmark.config.ts",
-    "eval": "node dist/eval/run.js",
+    "eval": "npx tsx test/eval/run-eval.ts",
+    "test:eval": "vitest run --config vitest.eval.config.ts",
     "generate": "node dist/pipeline/generate.js"
   },
   "keywords": [
