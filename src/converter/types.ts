@@ -57,13 +57,18 @@ export interface EZFInvariant {
   expression?: string;
 }
 
-/** An extension entry (for profiles). */
+/** An extension entry. */
 export interface EZFExtension {
   name: string;
+  url?: string;
+  kind: "simple" | "complex";
   min: number;
   max: string;
-  type: string;
+  /** For simple extensions: the value types. */
+  valueTypes?: string[];
   description?: string;
+  /** Resource types or paths this extension can be used on. */
+  context?: string[];
 }
 
 /** Metadata about the document. */

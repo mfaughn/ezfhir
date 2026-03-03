@@ -534,11 +534,16 @@ function parseExtensionLine(line: string): EZFExtension | undefined {
   const match = mainPart.match(/^(\S+)\s+:\s+(\d+)\.\.(\d+|\*)\s+(\S+)$/);
   if (!match) return undefined;
 
+  const typeStr = match[4];
+  const kind: "simple" | "complex" = typeStr === "complex" ? "complex" : "simple";
+  const valueTypes = kind === "simple" ? typeStr.split("|") : undefined;
+
   return {
     name: match[1],
     min: parseInt(match[2], 10),
     max: match[3],
-    type: match[4],
+    kind,
+    valueTypes,
     description,
   };
 }
