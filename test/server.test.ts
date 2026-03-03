@@ -7,6 +7,8 @@ import {
   getResourceIndex,
   getDatatypeIndex,
   getDatatypeEZF,
+  getExamples,
+  getSearchParams,
 } from "../src/server.js";
 import { searchSpec } from "../src/pipeline/searchIndex.js";
 
@@ -109,11 +111,24 @@ describe("MCP Server", () => {
       expect(result).toContain("Type: HumanName");
     });
 
+    it("resolves choice types (value[x])", () => {
+      const result = lookupElement("Observation", "value[x]");
+      expect(result).toContain("Observation.value[x]");
+      expect(result).toContain("Quantity");
+      expect(result).toContain("CodeableConcept");
+      expect(result).toContain("string");
+    });
+
     it("returns available elements when path not found", () => {
       const result = lookupElement("Patient", "nonexistent");
       expect(result).toContain("not found");
       expect(result).toContain("Available:");
       expect(result).toContain("gender");
+    });
+
+    it("returns clear error for invalid paths", () => {
+      const result = lookupElement("Patient", "gender.nonexistent");
+      expect(result).toContain("has no children");
     });
 
     it("handles element with reference types", () => {
@@ -131,6 +146,55 @@ describe("MCP Server", () => {
     it("shows children list for backbone elements", () => {
       const result = lookupElement("Patient", "contact");
       expect(result).toContain("Children:");
+    });
+  });
+
+  describe("getExamples", () => {
+    it("returns array for any resource type", () => {
+      const examples = getExamples("Patient");
+      expect(Array.isArray(examples)).toBe(true);
+    });
+
+    it("returns CapabilityStatement examples (present in core package)", () => {
+      const examples = getExamples("CapabilityStatement");
+      expect(examples.length).toBeGreaterThan(0);
+      expect(examples[0].resourceType).toBe("CapabilityStatement");
+    });
+
+    it("respects count parameter", () => {
+      const examples = getExamples("CapabilityStatement", 2);
+      expect(examples.length).toBeLessThanOrEqual(2);
+    });
+
+    it("returns empty array for resource with no instances in core", () => {
+      // Core package doesn't contain Patient example instances
+      const examples = getExamples("Patient");
+      expect(examples).toEqual([]);
+    });
+  });
+
+  describe("getSearchParams", () => {
+    it("returns search params for Patient", () => {
+      const params = getSearchParams("Patient");
+      expect(params.length).toBeGreaterThan(5);
+    });
+
+    it("includes name, type, and expression", () => {
+      const params = getSearchParams("Patient");
+      const genderParam = params.find((p) => p.name === "gender");
+      expect(genderParam).toBeDefined();
+      expect(genderParam!.type).toBe("token");
+      expect(genderParam!.expression).toBeTruthy();
+    });
+
+    it("returns params for Observation", () => {
+      const params = getSearchParams("Observation");
+      expect(params.length).toBeGreaterThan(5);
+    });
+
+    it("returns empty array for unknown resource", () => {
+      const params = getSearchParams("NotAResource");
+      expect(params).toEqual([]);
     });
   });
 

@@ -194,6 +194,81 @@ function formatElement(
   return lines.join("\n");
 }
 
+export interface ExampleInstance {
+  id: string;
+  resourceType: string;
+  description?: string;
+}
+
+/**
+ * Gets example instances for a given resource type from the loaded package.
+ * Scans the package for actual resource instances (not definitions).
+ */
+export function getExamples(resourceName: string, count = 5): ExampleInstance[] {
+  if (!loader) throw new Error("Loader not initialized");
+
+  // findResourceInfos with type filter matches by resourceType in the package
+  const infos = loader.findResourceInfos("*", {
+    scope: DEFAULT_SCOPE,
+  });
+
+  const examples: ExampleInstance[] = [];
+  for (const info of infos) {
+    if (!info.name) continue;
+    if (info.resourceType !== resourceName) continue;
+
+    examples.push({
+      id: info.name,
+      resourceType: resourceName,
+    });
+
+    if (examples.length >= count) break;
+  }
+
+  return examples;
+}
+
+export interface SearchParamInfo {
+  name: string;
+  type: string;
+  expression: string;
+  description?: string;
+}
+
+/**
+ * Gets all search parameters for a resource with full details.
+ */
+export function getSearchParams(resourceName: string): SearchParamInfo[] {
+  if (!loader) throw new Error("Loader not initialized");
+
+  const spInfos = loader.findResourceInfos("*", {
+    type: ["SearchParameter"],
+    scope: DEFAULT_SCOPE,
+  });
+
+  const results: SearchParamInfo[] = [];
+  for (const info of spInfos) {
+    if (!info.name) continue;
+    const sp = loader.findResourceJSON(info.name, {
+      type: ["SearchParameter"],
+      scope: DEFAULT_SCOPE,
+    }) as Record<string, unknown> | undefined;
+    if (!sp) continue;
+
+    const base = sp.base as string[] | undefined;
+    if (!base?.includes(resourceName)) continue;
+
+    results.push({
+      name: sp.name as string,
+      type: sp.type as string,
+      expression: (sp.expression as string) || "",
+      description: ((sp.description as string) || "").slice(0, 120),
+    });
+  }
+
+  return results.sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /**
  * Creates and configures the MCP server instance.
  */
@@ -325,6 +400,75 @@ export function createServer(): McpServer {
       } catch (error) {
         const message =
           error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text" as const, text: `Error: ${message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    "get_examples",
+    {
+      description:
+        "Get example instances of a FHIR resource type from the specification. " +
+        "Returns example IDs that can be used to understand typical resource usage.",
+      inputSchema: {
+        resource: z.string().describe("FHIR resource type (e.g., 'Patient', 'Observation')"),
+        count: z.number().optional().describe("Max examples to return (default 5)"),
+      },
+    },
+    async ({ resource, count }) => {
+      try {
+        const examples = getExamples(resource, count);
+        if (examples.length === 0) {
+          return {
+            content: [{ type: "text" as const, text: `No examples found for "${resource}"` }],
+          };
+        }
+        const text = examples
+          .map((e) => `- ${e.id} (${e.resourceType})`)
+          .join("\n");
+        return {
+          content: [{ type: "text" as const, text: `Examples for ${resource}:\n${text}` }],
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text" as const, text: `Error: ${message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    "get_search_params",
+    {
+      description:
+        "Get all search parameters for a FHIR resource type. " +
+        "Returns parameter names, types (token, reference, string, etc.), and FHIRPath expressions.",
+      inputSchema: {
+        resource: z.string().describe("FHIR resource type (e.g., 'Patient', 'Observation')"),
+      },
+    },
+    async ({ resource }) => {
+      try {
+        const params = getSearchParams(resource);
+        if (params.length === 0) {
+          return {
+            content: [{ type: "text" as const, text: `No search parameters found for "${resource}"` }],
+          };
+        }
+        const text = params
+          .map((p) => `${p.name} : ${p.type} : ${p.expression}`)
+          .join("\n");
+        return {
+          content: [{ type: "text" as const, text: `Search parameters for ${resource} (${params.length}):\n${text}` }],
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
         return {
           content: [{ type: "text" as const, text: `Error: ${message}` }],
           isError: true,
