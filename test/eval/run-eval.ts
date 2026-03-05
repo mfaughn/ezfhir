@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * AI Evaluation Harness for EZFhir (TASK-008).
+ * AI Evaluation Harness for EZFhir (TASK-008, expanded in TASK-042).
  *
  * Compares Claude's FHIR answers with and without the ezfhir MCP server.
  *
@@ -123,7 +123,7 @@ async function callClaude(
   }
 
   const body = {
-    model: "claude-sonnet-4-20250514",
+    model: "claude-sonnet-4-6-20250627",
     max_tokens: 1024,
     system: systemPrompt ?? "You are a FHIR expert. Answer questions precisely and concisely.",
     messages: [{ role: "user", content: prompt }],
@@ -176,7 +176,7 @@ async function runEval(): Promise<void> {
 
       // Extract resource name from question
       const resourceMatch = q.question.match(
-        /\b(Patient|Observation|Questionnaire|MedicationRequest|Condition|Encounter|Bundle)\b/
+        /\b(Patient|Observation|Questionnaire|MedicationRequest|Condition|Encounter|Bundle|AllergyIntolerance|ServiceRequest|Specimen|DeviceRequest|Group|Identifier)\b/
       );
       if (resourceMatch) {
         ezfContext = getEZF(resourceMatch[1]);

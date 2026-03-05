@@ -1,0 +1,28 @@
+# Source (dist/ is published)
+src/
+test/
+scripts/
+
+# Config files
+tsconfig.json
+vitest.config.ts
+vitest.benchmark.config.ts
+vitest.eval.config.ts
+.eslintrc*
+eslint.config*
+
+# Documentation (keep README)
+PLAN.md
+TASKS.md
+JOURNAL.md
+TESTING-STRATEGY.md
+COMPACT-FORMAT-SPEC.md
+blueprint.md
+spec.md
+DEPENDENCIES.md
+CLAUDE.md
+
+# Dev artifacts
+.claude/
+*.tgz
+node_modules/
