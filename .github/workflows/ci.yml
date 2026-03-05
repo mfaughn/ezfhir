@@ -31,11 +31,14 @@ jobs:
       - name: Build
         run: npm run build
 
-  # Integration tests require downloading the hl7.fhir.r5.core package (~200MB).
-  # Run on a single Node version to avoid redundant downloads.
+  # Integration tests require downloading hl7.fhir.r5.core (~200MB) from
+  # packages.fhir.org. This is non-blocking — the build job is the required gate.
+  # The FHIR package is cached between runs; first run after cache miss will
+  # download it. If the download fails, this job fails but doesn't block merge.
   integration:
     runs-on: ubuntu-latest
     needs: build
+    continue-on-error: true
     timeout-minutes: 15
 
     steps:
@@ -67,7 +70,7 @@ jobs:
         timeout-minutes: 5
 
   publish:
-    needs: [build, integration]
+    needs: [build]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
