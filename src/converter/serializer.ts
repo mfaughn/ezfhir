@@ -237,7 +237,10 @@ function buildElementTree(
   docType: EZFDocumentType
 ): EZFElement[] {
   const allElements = sd.snapshot!.element;
-  const resourceName = sd.name;
+  // For profiles (derivation=constraint), element paths use the base type name
+  // (e.g., "Group.identifier" not "ActualGroup.identifier"), so we use sd.type
+  // for path matching. For base resources, sd.type === sd.name.
+  const resourceName = sd.type ?? sd.name;
 
   // Filter out inherited elements (§6.2) and backbone infrastructure elements
   const filtered = allElements.filter(
