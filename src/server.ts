@@ -64,6 +64,13 @@ export async function initLoader(): Promise<FPLPackageLoader> {
 }
 
 /**
+ * Gets the current loader instance (for testing).
+ */
+export function getLoader(): FPLPackageLoader | null {
+  return loader;
+}
+
+/**
  * Loads an additional IG package into the server.
  */
 export async function loadIG(packageName: string, version: string): Promise<LoadedPackage> {

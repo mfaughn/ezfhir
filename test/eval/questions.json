@@ -1,7 +1,81 @@
 [
   {
-    "id": "q1",
-    "category": "cardinality",
+    "id": "a1",
+    "category": "A-resource-selection",
+    "question": "What FHIR resource should I use to represent a lab result?",
+    "referenceAnswer": "Use the Observation resource. Lab results are represented as Observations with a category of 'laboratory'. The value can be in Observation.value[x] as Quantity, CodeableConcept, string, or other types depending on the test.",
+    "keyFacts": [
+      "Observation resource",
+      "category is laboratory",
+      "value[x] holds the result"
+    ],
+    "hallucinationRisk": "low"
+  },
+  {
+    "id": "a2",
+    "category": "A-resource-selection",
+    "question": "How do I represent a medication prescription in FHIR?",
+    "referenceAnswer": "Use MedicationRequest. It captures the ordering of medication for a patient, including dosage instructions, dispense details, and substitution rules. The medication itself is referenced via medication (CodeableReference to Medication).",
+    "keyFacts": [
+      "MedicationRequest resource",
+      "dosage instructions",
+      "medication element references Medication"
+    ],
+    "hallucinationRisk": "low"
+  },
+  {
+    "id": "a3",
+    "category": "A-resource-selection",
+    "question": "What's the difference between Condition and Observation for diagnoses?",
+    "referenceAnswer": "Condition represents a clinician's assertion about a patient's clinical status (diagnosis, problem). Observation records a measurement or finding. A diagnosis would typically be a Condition, while the lab test that led to it would be an Observation. Condition has clinicalStatus and verificationStatus; Observation has status and value[x].",
+    "keyFacts": [
+      "Condition for diagnoses",
+      "Observation for measurements",
+      "Condition has clinicalStatus",
+      "Observation has value[x]"
+    ],
+    "hallucinationRisk": "medium"
+  },
+  {
+    "id": "a4",
+    "category": "A-resource-selection",
+    "question": "What FHIR resource should I use to represent a patient's allergy to penicillin?",
+    "referenceAnswer": "Use AllergyIntolerance. It records allergy or intolerance to a substance. Set code to penicillin, type to 'allergy', and category to 'medication'. You can specify reactions in the reaction backbone element.",
+    "keyFacts": [
+      "AllergyIntolerance resource",
+      "code identifies the substance",
+      "reaction element for reactions"
+    ],
+    "hallucinationRisk": "low"
+  },
+  {
+    "id": "a5",
+    "category": "A-resource-selection",
+    "question": "What resource represents a hospital visit or encounter?",
+    "referenceAnswer": "Use the Encounter resource. It represents an interaction between a patient and healthcare provider(s) for the purpose of providing healthcare services. It has class (e.g., inpatient, outpatient), status, period, and participants.",
+    "keyFacts": [
+      "Encounter resource",
+      "has class element",
+      "has status",
+      "has period"
+    ],
+    "hallucinationRisk": "low"
+  },
+  {
+    "id": "a6",
+    "category": "A-resource-selection",
+    "question": "How do I model a referral from one doctor to a specialist in FHIR?",
+    "referenceAnswer": "Use ServiceRequest. It represents a request for a service to be performed, including referrals. Set intent to 'order' or 'original-order', code to the type of service requested, and requester/performer to the referring and receiving providers.",
+    "keyFacts": [
+      "ServiceRequest resource",
+      "intent element",
+      "requester for referring provider"
+    ],
+    "hallucinationRisk": "medium"
+  },
+  {
+    "id": "b1",
+    "category": "B-element-detail",
     "question": "What is the cardinality of Patient.identifier in the FHIR R5 specification?",
     "referenceAnswer": "Patient.identifier has cardinality 0..* (zero to many). It is an array of Identifier elements.",
     "keyFacts": [
@@ -12,8 +86,8 @@
     "hallucinationRisk": "low"
   },
   {
-    "id": "q2",
-    "category": "binding",
+    "id": "b2",
+    "category": "B-element-detail",
     "question": "What value set is bound to Patient.gender in FHIR R5, and what is the binding strength?",
     "referenceAnswer": "Patient.gender is bound to http://hl7.org/fhir/ValueSet/administrative-gender with a binding strength of 'required'. The allowed codes are: male, female, other, unknown.",
     "keyFacts": [
@@ -24,8 +98,8 @@
     "hallucinationRisk": "medium"
   },
   {
-    "id": "q3",
-    "category": "structure",
+    "id": "b3",
+    "category": "B-element-detail",
     "question": "What are the child elements of Patient.contact in FHIR R5? List all of them.",
     "referenceAnswer": "Patient.contact is a BackboneElement with children: relationship, name, telecom, address, gender, organization, period.",
     "keyFacts": [
@@ -41,8 +115,8 @@
     "hallucinationRisk": "high"
   },
   {
-    "id": "q4",
-    "category": "flags",
+    "id": "b4",
+    "category": "B-element-detail",
     "question": "Which elements in the Patient resource are marked as isModifier in FHIR R5?",
     "referenceAnswer": "The Patient elements marked as isModifier (?!) are: active, deceased[x], and link.type.",
     "keyFacts": [
@@ -53,35 +127,9 @@
     "hallucinationRisk": "high"
   },
   {
-    "id": "q5",
-    "category": "reference-targets",
-    "question": "What resource types can Patient.generalPractitioner reference in FHIR R5?",
-    "referenceAnswer": "Patient.generalPractitioner can reference Organization, Practitioner, and PractitionerRole.",
-    "keyFacts": [
-      "can reference Organization",
-      "can reference Practitioner",
-      "can reference PractitionerRole",
-      "exactly 3 target types"
-    ],
-    "hallucinationRisk": "medium"
-  },
-  {
-    "id": "q6",
-    "category": "choice-type",
-    "question": "What types can Patient.deceased[x] hold in FHIR R5, and is this element required?",
-    "referenceAnswer": "Patient.deceased[x] is a choice type that can be boolean or dateTime. It has cardinality 0..1, meaning it is optional.",
-    "keyFacts": [
-      "can be boolean",
-      "can be dateTime",
-      "cardinality is 0..1 (optional)",
-      "is a modifier element"
-    ],
-    "hallucinationRisk": "low"
-  },
-  {
-    "id": "q7",
-    "category": "cross-resource",
-    "question": "What is the cardinality and type of Observation.value[x] in FHIR R5? List all possible types.",
+    "id": "b5",
+    "category": "B-element-detail",
+    "question": "What types can Observation.value[x] have in FHIR R5?",
     "referenceAnswer": "Observation.value[x] has cardinality 0..1 and can be one of: Quantity, CodeableConcept, string, boolean, integer, Range, Ratio, SampledData, time, dateTime, Period, Attachment.",
     "keyFacts": [
       "cardinality is 0..1",
@@ -94,8 +142,85 @@
     "hallucinationRisk": "high"
   },
   {
-    "id": "q8",
-    "category": "contentReference",
+    "id": "b6",
+    "category": "B-element-detail",
+    "question": "What types can Patient.deceased[x] hold in FHIR R5, and is this element required?",
+    "referenceAnswer": "Patient.deceased[x] is a choice type that can be boolean or dateTime. It has cardinality 0..1, meaning it is optional.",
+    "keyFacts": [
+      "can be boolean",
+      "can be dateTime",
+      "cardinality is 0..1 (optional)",
+      "is a modifier element"
+    ],
+    "hallucinationRisk": "low"
+  },
+  {
+    "id": "b7",
+    "category": "B-element-detail",
+    "question": "What is the binding on Observation.status in FHIR R5?",
+    "referenceAnswer": "Observation.status is bound to http://hl7.org/fhir/ValueSet/observation-status with a binding strength of 'required'. The codes include: registered, preliminary, final, amended, corrected, cancelled, entered-in-error, unknown.",
+    "keyFacts": [
+      "binding strength is required",
+      "observation-status value set",
+      "codes include final",
+      "codes include preliminary"
+    ],
+    "hallucinationRisk": "medium"
+  },
+  {
+    "id": "b8",
+    "category": "B-element-detail",
+    "question": "What is the cardinality and type of MedicationRequest.dosageInstruction in FHIR R5?",
+    "referenceAnswer": "MedicationRequest.dosageInstruction has cardinality 0..* and its type is Dosage. It contains structured dosing instructions for the medication.",
+    "keyFacts": [
+      "cardinality is 0..*",
+      "type is Dosage"
+    ],
+    "hallucinationRisk": "medium"
+  },
+  {
+    "id": "b9",
+    "category": "B-element-detail",
+    "question": "What elements does the FHIR Identifier datatype contain?",
+    "referenceAnswer": "The Identifier datatype has elements: use (code), type (CodeableConcept), system (uri), value (string), period (Period), and assigner (Reference to Organization).",
+    "keyFacts": [
+      "use element",
+      "system element",
+      "value element",
+      "type element",
+      "assigner references Organization"
+    ],
+    "hallucinationRisk": "medium"
+  },
+  {
+    "id": "c1",
+    "category": "C-cross-cutting",
+    "question": "What resource types can Patient.generalPractitioner reference in FHIR R5?",
+    "referenceAnswer": "Patient.generalPractitioner can reference Organization, Practitioner, and PractitionerRole.",
+    "keyFacts": [
+      "can reference Organization",
+      "can reference Practitioner",
+      "can reference PractitionerRole",
+      "exactly 3 target types"
+    ],
+    "hallucinationRisk": "medium"
+  },
+  {
+    "id": "c2",
+    "category": "C-cross-cutting",
+    "question": "How do I search for all Observations for a specific patient in FHIR?",
+    "referenceAnswer": "Use the 'patient' or 'subject' search parameter: GET /Observation?patient=[patient-id]. The 'patient' search parameter is of type 'reference' and searches Observation.subject where the subject is a Patient.",
+    "keyFacts": [
+      "patient search parameter",
+      "subject search parameter",
+      "type is reference",
+      "GET /Observation?patient="
+    ],
+    "hallucinationRisk": "low"
+  },
+  {
+    "id": "c3",
+    "category": "C-cross-cutting",
     "question": "In the Questionnaire resource, how does Questionnaire.item.item work? What kind of element is it?",
     "referenceAnswer": "Questionnaire.item.item is a contentReference that refers back to Questionnaire.item, allowing recursive nesting of questionnaire items. It has cardinality 0..*.",
     "keyFacts": [
@@ -105,5 +230,180 @@
       "cardinality is 0..*"
     ],
     "hallucinationRisk": "high"
+  },
+  {
+    "id": "c4",
+    "category": "C-cross-cutting",
+    "question": "What resources reference Patient in FHIR R5?",
+    "referenceAnswer": "Many resources reference Patient, including Observation (subject), Condition (subject), Encounter (subject), MedicationRequest (subject), AllergyIntolerance (patient), Procedure (subject), DiagnosticReport (subject), CarePlan (subject), and many more. Patient is one of the most referenced resources.",
+    "keyFacts": [
+      "Observation references Patient",
+      "Condition references Patient",
+      "Encounter references Patient",
+      "MedicationRequest references Patient"
+    ],
+    "hallucinationRisk": "low"
+  },
+  {
+    "id": "c5",
+    "category": "C-cross-cutting",
+    "question": "What search parameters does the Patient resource support in FHIR R5?",
+    "referenceAnswer": "Patient supports search parameters including: name, family, given, identifier, birthdate, gender, address, phone, email, active, general-practitioner, organization, and others.",
+    "keyFacts": [
+      "name search parameter",
+      "identifier search parameter",
+      "birthdate search parameter",
+      "gender search parameter"
+    ],
+    "hallucinationRisk": "medium"
+  },
+  {
+    "id": "c6",
+    "category": "C-cross-cutting",
+    "question": "What are the FHIRPath constraints (invariants) on the Patient resource?",
+    "referenceAnswer": "Patient has constraint pat-1 which states that contact SHALL have at least a contact detail or a reference to an organization (contact.name.exists() or contact.telecom.exists() or contact.address.exists() or contact.organization.exists()).",
+    "keyFacts": [
+      "pat-1 constraint",
+      "contact must have details or organization"
+    ],
+    "hallucinationRisk": "high"
+  },
+  {
+    "id": "c7",
+    "category": "C-cross-cutting",
+    "question": "What is the Bundle resource used for in FHIR and what types of bundles exist?",
+    "referenceAnswer": "Bundle is a container for a collection of resources. Bundle types (Bundle.type) include: document, message, transaction, transaction-response, batch, batch-response, history, searchset, collection, and subscription-notification.",
+    "keyFacts": [
+      "container for resources",
+      "transaction type",
+      "searchset type",
+      "document type"
+    ],
+    "hallucinationRisk": "low"
+  },
+  {
+    "id": "d1",
+    "category": "D-profile-ig",
+    "question": "What does US Core require for Patient beyond base FHIR?",
+    "referenceAnswer": "US Core Patient profile tightens base FHIR Patient by requiring identifier (1..*), name (1..*), and gender (1..1). It adds must-support flags on many elements including name.family, name.given, telecom, birthDate, address, and communication.language. It also adds extensions like us-core-race, us-core-ethnicity, and us-core-birthsex.",
+    "keyFacts": [
+      "identifier is required 1..*",
+      "name is required 1..*",
+      "us-core-race extension",
+      "us-core-ethnicity extension",
+      "must-support on many elements"
+    ],
+    "hallucinationRisk": "high"
+  },
+  {
+    "id": "d2",
+    "category": "D-profile-ig",
+    "question": "What extensions does US Core add to Patient?",
+    "referenceAnswer": "US Core adds the us-core-race, us-core-ethnicity, and us-core-birthsex (or us-core-sex) extensions to Patient. These capture demographic information required by US regulatory standards.",
+    "keyFacts": [
+      "us-core-race extension",
+      "us-core-ethnicity extension",
+      "us-core-birthsex extension"
+    ],
+    "hallucinationRisk": "medium"
+  },
+  {
+    "id": "d3",
+    "category": "D-profile-ig",
+    "question": "What is the ActualGroup profile in FHIR R5 and how does it differ from Group?",
+    "referenceAnswer": "ActualGroup is a profile on the Group resource that constrains Group.type to have a fixed value and requires actual to be true. It represents actual groups of patients/devices/etc. rather than definitional groups.",
+    "keyFacts": [
+      "profile on Group",
+      "actual must be true",
+      "constrains Group.type"
+    ],
+    "hallucinationRisk": "medium"
+  },
+  {
+    "id": "d4",
+    "category": "D-profile-ig",
+    "question": "What elements are must-support in the US Core Observation profile for vital signs?",
+    "referenceAnswer": "The vital signs profile requires must-support on status, category, code, subject, effective[x], and value[x]. The category must include a coding with system http://terminology.hl7.org/CodeSystem/observation-category and code 'vital-signs'.",
+    "keyFacts": [
+      "status is must-support",
+      "category is must-support",
+      "code is must-support",
+      "subject is must-support",
+      "vital-signs category code"
+    ],
+    "hallucinationRisk": "high"
+  },
+  {
+    "id": "d5",
+    "category": "D-profile-ig",
+    "question": "What is the difference between the vitalsigns and bp profiles in FHIR R5?",
+    "referenceAnswer": "The vitalsigns profile is a general profile for all vital sign observations. The bp (blood pressure) profile is more specific — it constrains Observation to represent blood pressure measurements with systolic and diastolic components. The bp profile derives from the vitalsigns profile and adds component slices for systolic and diastolic values.",
+    "keyFacts": [
+      "bp is more specific than vitalsigns",
+      "bp has systolic component",
+      "bp has diastolic component",
+      "bp derives from vitalsigns"
+    ],
+    "hallucinationRisk": "medium"
+  },
+  {
+    "id": "e1",
+    "category": "E-version-differences",
+    "question": "What major changes happened to MedicationRequest between FHIR R4 and R5?",
+    "referenceAnswer": "In R5, MedicationRequest.medication changed from a choice type (medicationCodeableConcept or medicationReference) to a CodeableReference. The reported element was renamed to informationSource. Several elements were added or modified for better clinical workflow support.",
+    "keyFacts": [
+      "medication changed to CodeableReference",
+      "was choice type in R4",
+      "informationSource replaces reported"
+    ],
+    "hallucinationRisk": "high"
+  },
+  {
+    "id": "e2",
+    "category": "E-version-differences",
+    "question": "Is DeviceRequest still in FHIR R5 or was it renamed?",
+    "referenceAnswer": "DeviceRequest is still present in FHIR R5. It has not been renamed. It represents a request for the use of a device for a patient.",
+    "keyFacts": [
+      "DeviceRequest exists in R5",
+      "not renamed"
+    ],
+    "hallucinationRisk": "medium"
+  },
+  {
+    "id": "e3",
+    "category": "E-version-differences",
+    "question": "What new resources were introduced in FHIR R5 that did not exist in R4?",
+    "referenceAnswer": "R5 introduced several new resources including ActorDefinition, SubscriptionTopic, SubscriptionStatus, NutritionIntake, InventoryItem, InventoryReport, DeviceAssociation, DeviceDispense, BiologicallyDerivedProductDispense, GenomicStudy, EncounterHistory, FormularyItem, TestPlan, Transport, and Permission.",
+    "keyFacts": [
+      "NutritionIntake is new in R5",
+      "SubscriptionTopic is new in R5",
+      "GenomicStudy is new in R5",
+      "DeviceAssociation is new in R5"
+    ],
+    "hallucinationRisk": "high"
+  },
+  {
+    "id": "e4",
+    "category": "E-version-differences",
+    "question": "How did Encounter change between FHIR R4 and R5?",
+    "referenceAnswer": "In R5, Encounter underwent significant restructuring. The class element changed from a Coding to a list of CodeableConcept (via classHistory being merged). hospitalization was renamed to admission. Several elements were reorganized for clarity. The status values were also simplified.",
+    "keyFacts": [
+      "class changed type",
+      "hospitalization renamed to admission",
+      "status values changed"
+    ],
+    "hallucinationRisk": "high"
+  },
+  {
+    "id": "e5",
+    "category": "E-version-differences",
+    "question": "What happened to the Specimen.collection.collector element between R4 and R5?",
+    "referenceAnswer": "In R5, Specimen.collection.collector continues to be a Reference to Practitioner or PractitionerRole. The element is largely unchanged between R4 and R5, maintaining its 0..1 cardinality.",
+    "keyFacts": [
+      "collector still exists in R5",
+      "Reference to Practitioner",
+      "Reference to PractitionerRole"
+    ],
+    "hallucinationRisk": "medium"
   }
 ]

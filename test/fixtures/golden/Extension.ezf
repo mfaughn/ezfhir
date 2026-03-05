@@ -1,0 +1,10 @@
+@format ezf/0.1
+@datatype Extension : DataType
+@description Extension Type: Optional Extension Element - found in all resources.
+
+@elements
+url              : 1..1 http://hl7.org/fhirpath/System.String  # identifies the meaning of the extension
+value[x]         : 0..1 base64Binary|boolean|canonical|code|date|dateTime|decimal|id|instant|integer|integer64|markdown|oid|positiveInt|string|time|unsignedInt|uri|url|uuid|Address|Age|Annotation|Attachment|CodeableConcept|CodeableReference|Coding|ContactPoint|Count|Distance|Duration|HumanName|Identifier|Money|Period|Quantity|Range|Ratio|RatioRange|Reference|SampledData|Signature|Timing|ContactDetail|DataRequirement|Expression|ParameterDefinition|RelatedArtifact|TriggerDefinition|UsageContext|Availability|ExtendedContactDetail|Dosage|Meta  # Value of extension
+
+@invariants
+ext-1    : Must have either extensions or value[x], not both

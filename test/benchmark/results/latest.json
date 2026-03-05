@@ -1,0 +1,206 @@
+{
+  "timestamp": "2026-03-05T18:28:39.642Z",
+  "avgRatio": 0.017170197185680434,
+  "avgTokens": 878.7727272727273,
+  "totalEzfTokens": 19333,
+  "rows": [
+    {
+      "name": "Basic",
+      "category": "simple",
+      "jsonChars": 54321,
+      "jsonTokens": 13581,
+      "ezfChars": 697,
+      "ezfTokens": 175,
+      "ratio": 0.01283113344746967
+    },
+    {
+      "name": "Binary",
+      "category": "simple",
+      "jsonChars": 32978,
+      "jsonTokens": 8245,
+      "ezfChars": 595,
+      "ezfTokens": 149,
+      "ratio": 0.018042331251137123
+    },
+    {
+      "name": "Bundle",
+      "category": "simple",
+      "jsonChars": 213849,
+      "jsonTokens": 53463,
+      "ezfChars": 4787,
+      "ezfTokens": 1197,
+      "ratio": 0.022384953869319005
+    },
+    {
+      "name": "Patient",
+      "category": "medium",
+      "jsonChars": 207815,
+      "jsonTokens": 51954,
+      "ezfChars": 3273,
+      "ezfTokens": 819,
+      "ratio": 0.015749584967398887
+    },
+    {
+      "name": "Practitioner",
+      "category": "medium",
+      "jsonChars": 136089,
+      "jsonTokens": 34023,
+      "ezfChars": 1980,
+      "ezfTokens": 495,
+      "ratio": 0.014549302294821771
+    },
+    {
+      "name": "Organization",
+      "category": "medium",
+      "jsonChars": 109587,
+      "jsonTokens": 27397,
+      "ezfChars": 2055,
+      "ezfTokens": 514,
+      "ratio": 0.018752224260176847
+    },
+    {
+      "name": "Location",
+      "category": "medium",
+      "jsonChars": 139437,
+      "jsonTokens": 34860,
+      "ezfChars": 2477,
+      "ezfTokens": 620,
+      "ratio": 0.0177642949862662
+    },
+    {
+      "name": "Observation",
+      "category": "complex",
+      "jsonChars": 419684,
+      "jsonTokens": 104921,
+      "ezfChars": 5672,
+      "ezfTokens": 1418,
+      "ratio": 0.013514930280877994
+    },
+    {
+      "name": "MedicationRequest",
+      "category": "complex",
+      "jsonChars": 310569,
+      "jsonTokens": 77643,
+      "ezfChars": 5531,
+      "ezfTokens": 1383,
+      "ratio": 0.01780924689843481
+    },
+    {
+      "name": "Claim",
+      "category": "complex",
+      "jsonChars": 833452,
+      "jsonTokens": 208363,
+      "ezfChars": 10267,
+      "ezfTokens": 2567,
+      "ratio": 0.012318645824834544
+    },
+    {
+      "name": "ExplanationOfBenefit",
+      "category": "complex",
+      "jsonChars": 1518506,
+      "jsonTokens": 379627,
+      "ezfChars": 18664,
+      "ezfTokens": 4666,
+      "ratio": 0.01229102815530528
+    },
+    {
+      "name": "Condition",
+      "category": "complex",
+      "jsonChars": 202275,
+      "jsonTokens": 50569,
+      "ezfChars": 2881,
+      "ezfTokens": 721,
+      "ratio": 0.014242986033864789
+    },
+    {
+      "name": "Encounter",
+      "category": "complex",
+      "jsonChars": 301048,
+      "jsonTokens": 75262,
+      "ezfChars": 5900,
+      "ezfTokens": 1475,
+      "ratio": 0.019598203608726848
+    },
+    {
+      "name": "DiagnosticReport",
+      "category": "complex",
+      "jsonChars": 186547,
+      "jsonTokens": 46637,
+      "ezfChars": 3533,
+      "ezfTokens": 884,
+      "ratio": 0.01893892691922143
+    },
+    {
+      "name": "CarePlan",
+      "category": "complex",
+      "jsonChars": 176460,
+      "jsonTokens": 44115,
+      "ezfChars": 3146,
+      "ezfTokens": 787,
+      "ratio": 0.017828403037515584
+    },
+    {
+      "name": "Identifier",
+      "category": "datatype",
+      "jsonChars": 49483,
+      "jsonTokens": 12371,
+      "ezfChars": 1121,
+      "ezfTokens": 281,
+      "ratio": 0.022654244892185194
+    },
+    {
+      "name": "CodeableConcept",
+      "category": "datatype",
+      "jsonChars": 26124,
+      "jsonTokens": 6531,
+      "ezfChars": 293,
+      "ezfTokens": 74,
+      "ratio": 0.011215740315418773
+    },
+    {
+      "name": "HumanName",
+      "category": "datatype",
+      "jsonChars": 48543,
+      "jsonTokens": 12136,
+      "ezfChars": 909,
+      "ezfTokens": 228,
+      "ratio": 0.018725665904455843
+    },
+    {
+      "name": "Address",
+      "category": "datatype",
+      "jsonChars": 63809,
+      "jsonTokens": 15953,
+      "ezfChars": 1416,
+      "ezfTokens": 354,
+      "ratio": 0.02219122694290774
+    },
+    {
+      "name": "Quantity",
+      "category": "datatype",
+      "jsonChars": 41182,
+      "jsonTokens": 10296,
+      "ezfChars": 874,
+      "ezfTokens": 219,
+      "ratio": 0.021222864358214754
+    },
+    {
+      "name": "Period",
+      "category": "datatype",
+      "jsonChars": 24263,
+      "jsonTokens": 6066,
+      "ezfChars": 416,
+      "ezfTokens": 104,
+      "ratio": 0.01714544780117875
+    },
+    {
+      "name": "Reference",
+      "category": "datatype",
+      "jsonChars": 45179,
+      "jsonTokens": 11295,
+      "ezfChars": 812,
+      "ezfTokens": 203,
+      "ratio": 0.017972952035237612
+    }
+  ]
+}

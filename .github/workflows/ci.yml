@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+  # Integration tests require downloading hl7.fhir.r5.core (~200MB) from
+  # packages.fhir.org. This is non-blocking — the build job is the required gate.
+  # The FHIR package is cached between runs; first run after cache miss will
+  # download it. If the download fails, this job fails but doesn't block merge.
+  integration:
+    runs-on: ubuntu-latest
+    needs: build
+    continue-on-error: true
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Cache FHIR packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.fhir/packages
+          key: fhir-packages-r5-5.0.0
+
+      - name: Run tests
+        run: npm test
+        timeout-minutes: 10
+
+      - name: Run benchmarks
+        run: npm run benchmark
+        timeout-minutes: 5
+
+  publish:
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      # Dry run — uncomment and add NPM_TOKEN secret to actually publish
+      - name: Publish (dry run)
+        run: npm publish --dry-run

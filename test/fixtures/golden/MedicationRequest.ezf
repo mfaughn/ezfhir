@@ -1,0 +1,57 @@
+@format ezf/0.1
+@resource MedicationRequest : DomainResource
+@description An order or request for both supply of the medication and the instructions for administration of the medication to a patient. The resource is called "MedicationRequest" rather than "MedicationPrescription" or "MedicationOrder" to generalize the use across inpatient and outpatient settings, including care plans, etc., and to harmonize with workflow patterns.
+
+@elements
+identifier       : 0..* Identifier        # External ids for this request
+basedOn          : 0..* Reference(CarePlan|ImmunizationRecommendation|MedicationRequest|ServiceRequest)  [Σ] # A plan or request that is fulfilled in whole or in part by this medication requ…
+priorPrescription : 0..1 Reference(MedicationRequest)  # Reference to an order/prescription that is being replaced by this MedicationReq…
+groupIdentifier  : 0..1 Identifier        [Σ] # Composite request this is part of
+status           : 1..1 code              [?!Σ] # active | on-hold | ended | stopped | completed | cancelled | entered-in-error |…
+  @binding required http://hl7.org/fhir/ValueSet/medicationrequest-status
+statusReason     : 0..1 CodeableConcept   # Reason for current status
+statusChanged    : 0..1 dateTime          # When the status was changed
+intent           : 1..1 code              [?!Σ] # proposal | plan | order | original-order | reflex-order | filler-order | instan…
+  @binding required http://hl7.org/fhir/ValueSet/medicationrequest-intent
+category         : 0..* CodeableConcept   # Grouping or category of medication request
+priority         : 0..1 code              [Σ] # routine | urgent | asap | stat
+  @binding required http://hl7.org/fhir/ValueSet/request-priority
+doNotPerform     : 0..1 boolean           [?!Σ] # True if patient is to stop taking or not to start taking the medication
+medication       : 1..1 CodeableReference(Medication)  [Σ] # Medication to be taken
+subject          : 1..1 Reference(Group|Patient)  [Σ] # Individual or group for whom the medication has been requested
+informationSource : 0..* Reference(Organization|Patient|Practitioner|PractitionerRole|RelatedPerson)  # The person or organization who provided the information about this request, if …
+encounter        : 0..1 Reference(Encounter)  # Encounter created as part of encounter/admission/stay
+supportingInformation : 0..* Reference(Resource)  # Information to support fulfilling of the medication
+authoredOn       : 0..1 dateTime          [Σ] # When request was initially authored
+requester        : 0..1 Reference(Device|Organization|Patient|Practitioner|PractitionerRole|RelatedPerson)  [Σ] # Who/What requested the Request
+reported         : 0..1 boolean           [Σ] # Reported rather than primary record
+performerType    : 0..1 CodeableConcept   [Σ] # Desired kind of performer of the medication administration
+  @binding extensible http://hl7.org/fhir/ValueSet/medication-intended-performer-role
+performer        : 0..* Reference(CareTeam|DeviceDefinition|HealthcareService|Organization|Patient|Practitioner|PractitionerRole|RelatedPerson)  # Intended performer of administration
+device           : 0..* CodeableReference(DeviceDefinition)  # Intended type of device for the administration
+recorder         : 0..1 Reference(Practitioner|PractitionerRole)  # Person who entered the request
+reason           : 0..* CodeableReference(Condition|Observation)  # Reason or indication for ordering or not ordering the medication
+courseOfTherapyType : 0..1 CodeableConcept   # Overall pattern of medication administration
+  @binding extensible http://hl7.org/fhir/ValueSet/medicationrequest-course-of-therapy
+insurance        : 0..* Reference(ClaimResponse|Coverage)  # Associated insurance coverage
+note             : 0..* Annotation        # Information about the prescription
+renderedDosageInstruction : 0..1 markdown          # Full representation of the dosage instructions
+effectiveDosePeriod : 0..1 Period            # Period over which the medication is to be taken
+dosageInstruction : 0..* Dosage            # Specific instructions for how the medication should be taken
+dispenseRequest  : 0..1 BackboneElement   # Medication supply authorization
+  initialFill    : 0..1 BackboneElement   # First fill details
+    quantity     : 0..1 Quantity          # First fill quantity
+    duration     : 0..1 Duration          # First fill duration
+  dispenseInterval : 0..1 Duration          # Minimum period of time between dispenses
+  validityPeriod : 0..1 Period            # Time period supply is authorized for
+  numberOfRepeatsAllowed : 0..1 unsignedInt       # Number of refills authorized
+  quantity       : 0..1 Quantity          # Amount of medication to supply per dispense
+  expectedSupplyDuration : 0..1 Duration          # Number of days supply per dispense
+  dispenser      : 0..1 Reference(Organization)  # Intended performer of dispense
+  dispenserInstruction : 0..* Annotation        # Additional information for the dispenser
+  doseAdministrationAid : 0..1 CodeableConcept   # Type of adherence packaging to use for the dispense
+substitution     : 0..1 BackboneElement   # Any restrictions on medication substitution
+  allowed[x]     : 1..1 boolean|CodeableConcept  # Whether substitution is allowed or not
+    @binding preferred http://terminology.hl7.org/ValueSet/v3-ActSubstanceAdminSubstitutionCode
+  reason         : 0..1 CodeableConcept   # Why should (not) substitution be made
+eventHistory     : 0..* Reference(Provenance)  # A list of events of interest in the lifecycle

@@ -1,0 +1,41 @@
+@format ezf/0.1
+@resource Patient : DomainResource
+@description Demographics and other administrative information about an individual or animal receiving care or other health-related services.
+
+@elements
+identifier       : 0..* Identifier        [Σ] # An identifier for this patient
+active           : 0..1 boolean           [?!Σ] # Whether this patient's record is in active use
+name             : 0..* HumanName         [Σ] # A name associated with the patient
+telecom          : 0..* ContactPoint      [Σ] # A contact detail for the individual
+gender           : 0..1 code              [Σ] # male | female | other | unknown
+  @binding required http://hl7.org/fhir/ValueSet/administrative-gender
+birthDate        : 0..1 date              [Σ] # The date of birth for the individual
+deceased[x]      : 0..1 boolean|dateTime  [?!Σ] # Indicates if the individual is deceased or not
+address          : 0..* Address           [Σ] # An address for the individual
+maritalStatus    : 0..1 CodeableConcept   # Marital (civil) status of a patient
+  @binding extensible http://hl7.org/fhir/ValueSet/marital-status
+multipleBirth[x] : 0..1 boolean|integer   # Whether patient is part of a multiple birth
+photo            : 0..* Attachment        # Image of the patient
+contact          : 0..* BackboneElement   # A contact party (e.g. guardian, partner, friend) for the patient
+  relationship   : 0..* CodeableConcept   # The kind of relationship
+    @binding extensible http://hl7.org/fhir/ValueSet/patient-contactrelationship
+  name           : 0..1 HumanName         # A name associated with the contact person
+  telecom        : 0..* ContactPoint      # A contact detail for the person
+  address        : 0..1 Address           # Address for the contact person
+  gender         : 0..1 code              # male | female | other | unknown
+    @binding required http://hl7.org/fhir/ValueSet/administrative-gender
+  organization   : 0..1 Reference(Organization)  # Organization that is associated with the contact
+  period         : 0..1 Period            # The period during which this contact person or organization is valid to be cont…
+communication    : 0..* BackboneElement   # A language which may be used to communicate with the patient about his or her h…
+  language       : 1..1 CodeableConcept   # The language which can be used to communicate with the patient about his or her…
+    @binding required http://hl7.org/fhir/ValueSet/all-languages
+  preferred      : 0..1 boolean           # Language preference indicator
+generalPractitioner : 0..* Reference(Organization|Practitioner|PractitionerRole)  # Patient's nominated primary care provider
+managingOrganization : 0..1 Reference(Organization)  [Σ] # Organization that is the custodian of the patient record
+link             : 0..* BackboneElement   [?!Σ] # Link to a Patient or RelatedPerson resource that concerns the same actual indiv…
+  other          : 1..1 Reference(Patient|RelatedPerson)  [Σ] # The other patient or related person resource that the link refers to
+  type           : 1..1 code              [Σ] # replaced-by | replaces | refer | seealso
+    @binding required http://hl7.org/fhir/ValueSet/link-type
+
+@invariants
+pat-1    : SHALL at least contain a contact's details or a reference to an organization

@@ -1,0 +1,16 @@
+@format ezf/0.1
+@datatype Identifier : DataType
+@description Identifier Type: An identifier - identifies some entity uniquely and unambiguously. Typically this is used for business identifiers.
+
+@elements
+use              : 0..1 code              [?!Σ] # usual | official | temp | secondary | old (If known)
+  @binding required http://hl7.org/fhir/ValueSet/identifier-use
+type             : 0..1 CodeableConcept   [Σ] # Description of identifier
+  @binding extensible http://hl7.org/fhir/ValueSet/identifier-type
+system           : 0..1 uri               [Σ] # The namespace for the identifier value
+value            : 0..1 string            [Σ] # The value that is unique
+period           : 0..1 Period            [Σ] # Time period when id is/was valid for use
+assigner         : 0..1 Reference(Organization)  [Σ] # Organization that issued id (may be just text)
+
+@invariants
+ident-1  : Identifier with no value has limited utility.  If communicating that an identifier value has been suppressed or missing, the value element SHOULD be present with an extension indicating the missing semantic - e.g. data-absent-reason
