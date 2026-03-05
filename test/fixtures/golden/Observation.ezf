@@ -1,0 +1,63 @@
+@format ezf/0.1
+@resource Observation : DomainResource
+@description Measurements and simple assertions made about a patient, device or other subject.
+
+@elements
+identifier       : 0..* Identifier        [Σ] # Business Identifier for observation
+instantiates[x]  : 0..1 canonical(ObservationDefinition)|Reference(ObservationDefinition)  [Σ] # Instantiates FHIR ObservationDefinition
+basedOn          : 0..* Reference(CarePlan|DeviceRequest|ImmunizationRecommendation|MedicationRequest|NutritionOrder|ServiceRequest)  [Σ] # Fulfills plan, proposal or order
+triggeredBy      : 0..* BackboneElement   # Triggering observation(s)
+  observation    : 1..1 Reference(Observation)  [Σ] # Triggering observation
+  type           : 1..1 code              [Σ] # reflex | repeat | re-run
+    @binding required http://hl7.org/fhir/ValueSet/observation-triggeredbytype
+  reason         : 0..1 string            # Reason that the observation was triggered
+partOf           : 0..* Reference(GenomicStudy|ImagingStudy|Immunization|MedicationAdministration|MedicationDispense|MedicationStatement|Procedure)  [Σ] # Part of referenced event
+status           : 1..1 code              [?!Σ] # registered | preliminary | final | amended +
+  @binding required http://hl7.org/fhir/ValueSet/observation-status
+category         : 0..* CodeableConcept   # Classification of  type of observation
+  @binding preferred http://hl7.org/fhir/ValueSet/observation-category
+code             : 1..1 CodeableConcept   [Σ] # Type of observation (code / type)
+subject          : 0..1 Reference(BiologicallyDerivedProduct|Device|Group|Location|Medication|NutritionProduct|Organization|Patient|Practitioner|Procedure|Substance)  [Σ] # Who and/or what the observation is about
+focus            : 0..* Reference(Resource)  [Σ] # What the observation is about, when it is not about the subject of record
+encounter        : 0..1 Reference(Encounter)  [Σ] # Healthcare event during which this observation is made
+effective[x]     : 0..1 dateTime|Period|Timing|instant  [Σ] # Clinically relevant time/time-period for observation
+issued           : 0..1 instant           [Σ] # Date/Time this version was made available
+performer        : 0..* Reference(CareTeam|Organization|Patient|Practitioner|PractitionerRole|RelatedPerson)  [Σ] # Who is responsible for the observation
+value[x]         : 0..1 Quantity|CodeableConcept|string|boolean|integer|Range|Ratio|SampledData|time|dateTime|Period|Attachment|Reference(MolecularSequence)  [Σ] # Actual result
+dataAbsentReason : 0..1 CodeableConcept   # Why the result is missing
+  @binding extensible http://hl7.org/fhir/ValueSet/data-absent-reason
+interpretation   : 0..* CodeableConcept   # High, low, normal, etc
+  @binding extensible http://hl7.org/fhir/ValueSet/observation-interpretation
+note             : 0..* Annotation        # Comments about the observation
+bodySite         : 0..1 CodeableConcept   # Observed body part
+bodyStructure    : 0..1 Reference(BodyStructure)  # Observed body structure
+method           : 0..1 CodeableConcept   # How it was done
+specimen         : 0..1 Reference(Group|Specimen)  # Specimen used for this observation
+device           : 0..1 Reference(Device|DeviceMetric)  # A reference to the device that generates the measurements or the device setting…
+referenceRange   : 0..* BackboneElement   # Provides guide for interpretation
+  low            : 0..1 Quantity          # Low Range, if relevant
+  high           : 0..1 Quantity          # High Range, if relevant
+  normalValue    : 0..1 CodeableConcept   # Normal value, if relevant
+    @binding extensible http://hl7.org/fhir/ValueSet/observation-referencerange-normalvalue
+  type           : 0..1 CodeableConcept   # Reference range qualifier
+    @binding preferred http://hl7.org/fhir/ValueSet/referencerange-meaning
+  appliesTo      : 0..* CodeableConcept   # Reference range population
+  age            : 0..1 Range             # Applicable age range, if relevant
+  text           : 0..1 markdown          # Text based reference range in an observation
+hasMember        : 0..* Reference(MolecularSequence|Observation|QuestionnaireResponse)  [Σ] # Related resource that belongs to the Observation group
+derivedFrom      : 0..* Reference(DocumentReference|GenomicStudy|ImagingSelection|ImagingStudy|MolecularSequence|Observation|QuestionnaireResponse)  [Σ] # Related resource from which the observation is made
+component        : 0..* BackboneElement   [Σ] # Component results
+  code           : 1..1 CodeableConcept   [Σ] # Type of component observation (code / type)
+  value[x]       : 0..1 Quantity|CodeableConcept|string|boolean|integer|Range|Ratio|SampledData|time|dateTime|Period|Attachment|Reference(MolecularSequence)  [Σ] # Actual component result
+  dataAbsentReason : 0..1 CodeableConcept   # Why the component result is missing
+    @binding extensible http://hl7.org/fhir/ValueSet/data-absent-reason
+  interpretation : 0..* CodeableConcept   # High, low, normal, etc
+    @binding extensible http://hl7.org/fhir/ValueSet/observation-interpretation
+  referenceRange : 0..* @ref(Observation.referenceRange)  # Provides guide for interpretation of component result
+
+@invariants
+obs-6    : dataAbsentReason SHALL only be present if Observation.value[x] is not present
+obs-7    : If Observation.component.code is the same as Observation.code, then Observation.value SHALL NOT be present (the Observation.component.value[x] holds the value).
+obs-8    : bodyStructure SHALL only be present if Observation.bodySite is not present
+obs-9    : If Observation.specimen is a reference to Group, the group can only have specimens
+obs-3    : Must have at least a low or a high or text

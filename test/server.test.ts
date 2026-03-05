@@ -13,8 +13,10 @@ import {
   getReferences,
   getConstraints,
   listIGs,
+  getLoader,
 } from "../src/server.js";
 import { searchSpec } from "../src/pipeline/searchIndex.js";
+import { compareProfiles } from "../src/pipeline/sdDiff.js";
 
 describe("MCP Server", () => {
   beforeAll(async () => {
@@ -151,6 +153,20 @@ describe("MCP Server", () => {
       const result = lookupElement("Patient", "contact");
       expect(result).toContain("Children:");
     });
+
+    // Additional golden I/O tests per TESTING-STRATEGY.md §4.2
+    it("finds nested element with CodeableConcept type", () => {
+      const result = lookupElement("Patient", "contact.relationship");
+      expect(result).toContain("Patient.contact.relationship");
+      expect(result).toContain("Type: CodeableConcept");
+      expect(result).toContain("Cardinality: 0..*");
+    });
+
+    it("resolves deep path through multiple backbone levels", () => {
+      const result = lookupElement("Claim", "item.detail.subDetail.factor");
+      expect(result).toContain("Claim.item.detail.subDetail.factor");
+      expect(result).toContain("Type: decimal");
+    });
   });
 
   describe("getExamples", () => {
@@ -208,6 +224,30 @@ describe("MCP Server", () => {
       expect(results.length).toBeGreaterThan(0);
       expect(results[0].name).toBe("Patient");
     });
+
+    // Additional golden I/O tests per TESTING-STRATEGY.md §4.2
+    it("finds relevant results for element concept search", () => {
+      const results = searchSpec("blood pressure");
+      expect(results.length).toBeGreaterThan(0);
+      // Observation-related results should rank highly for blood pressure searches
+      const observationResult = results.find((r) => r.name.includes("Observation"));
+      expect(observationResult).toBeDefined();
+    });
+
+    it("ranks AllergyIntolerance high for allergy search", () => {
+      const results = searchSpec("allergies");
+      expect(results.length).toBeGreaterThan(0);
+      const allergyResult = results.find((r) => r.name === "AllergyIntolerance");
+      expect(allergyResult).toBeDefined();
+      // Should be in top 5 results
+      const topFive = results.slice(0, 5);
+      expect(topFive.some((r) => r.name === "AllergyIntolerance")).toBe(true);
+    });
+
+    it("returns empty results for nonsense query", () => {
+      const results = searchSpec("xyzzy");
+      expect(results).toEqual([]);
+    });
   });
 
   describe("listIGs", () => {
@@ -238,6 +278,15 @@ describe("MCP Server", () => {
     it("throws for unknown resource", () => {
       expect(() => getBindings("NotAResource")).toThrow("not found");
     });
+
+    // Additional golden I/O test per TESTING-STRATEGY.md §4.2
+    it("includes gender → administrative-gender (required)", () => {
+      const bindings = getBindings("Patient");
+      const genderBinding = bindings.find((b) => b.path === "Patient.gender");
+      expect(genderBinding).toBeDefined();
+      expect(genderBinding!.strength).toBe("required");
+      expect(genderBinding!.valueSet).toContain("administrative-gender");
+    });
   });
 
   describe("getReferences", () => {
@@ -251,6 +300,18 @@ describe("MCP Server", () => {
 
     it("throws for unknown resource", () => {
       expect(() => getReferences("NotAResource")).toThrow("not found");
+    });
+
+    // Additional golden I/O test per TESTING-STRATEGY.md §4.2
+    it("includes generalPractitioner → Organization|Practitioner|PractitionerRole", () => {
+      const refs = getReferences("Patient");
+      const gpRef = refs.find((r) => r.path === "Patient.generalPractitioner");
+      expect(gpRef).toBeDefined();
+      expect(gpRef!.targets.length).toBeGreaterThan(0);
+      // Should include Organization, Practitioner, and PractitionerRole
+      expect(gpRef!.targets.some((t) => t.includes("Organization"))).toBe(true);
+      expect(gpRef!.targets.some((t) => t.includes("Practitioner"))).toBe(true);
+      expect(gpRef!.targets.some((t) => t.includes("PractitionerRole"))).toBe(true);
     });
   });
 
@@ -271,6 +332,39 @@ describe("MCP Server", () => {
     it("returns empty array for unknown resource", () => {
       const constraints = getConstraints("NotAResource");
       expect(constraints).toEqual([]);
+    });
+
+    // Additional golden I/O test per TESTING-STRATEGY.md §4.2
+    it("includes pat-1 constraint with human description", () => {
+      const constraints = getConstraints("Patient");
+      const pat1 = constraints.find((c) => c.key === "pat-1");
+      expect(pat1).toBeDefined();
+      expect(pat1!.severity).toBeTruthy();
+      expect(pat1!.human).toBeTruthy();
+      expect(pat1!.human.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("compare_profiles", () => {
+    it("returns no differences when comparing identical resources", () => {
+      const loader = getLoader();
+      if (!loader) throw new Error("Loader not initialized");
+
+      const result = compareProfiles(loader, "Patient", "Patient");
+      expect(result).toBeDefined();
+      expect(result!.changes.length).toBe(0);
+    });
+
+    it("detects differences between resources", () => {
+      const loader = getLoader();
+      if (!loader) throw new Error("Loader not initialized");
+
+      // Compare different resources to verify diff detection
+      // This is a sanity test; Patient and Observation should have differences
+      const result = compareProfiles(loader, "Patient", "Observation");
+      expect(result).toBeDefined();
+      // Different resources will have many differences
+      expect(result!.changes.length).toBeGreaterThan(0);
     });
   });
 
