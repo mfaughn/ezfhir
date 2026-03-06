@@ -2,8 +2,8 @@
  * EZFhir MCP Server.
  *
  * Provides token-efficient FHIR specification access via MCP protocol.
- * Phase 2: serves resource/datatype indices, individual resources,
- * datatypes, and lookup tools.
+ * Serves resource/datatype indices, individual resources, datatypes,
+ * lookup tools, and documentation/guidance content.
  */
 
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -26,6 +26,10 @@ import {
 import { buildSearchIndex, searchSpec } from "./pipeline/searchIndex.js";
 import { compareProfiles, renderDiff, diffStructureDefinitions } from "./pipeline/sdDiff.js";
 import type { EZFElement } from "./converter/types.js";
+import { TopicRegistry } from "./content/topicRegistry.js";
+import { ContentStore } from "./content/contentStore.js";
+import type { ContentChunk } from "./content/types.js";
+import { extractIGNarrative } from "./pipeline/igNarrativeExtractor.js";
 
 export const VERSION = "0.1.0";
 
@@ -49,6 +53,24 @@ export interface LoadedPackage {
   artifactCount: number;
 }
 const loadedPackages: LoadedPackage[] = [];
+
+/** Global content infrastructure for documentation/guidance. */
+const topicRegistry = new TopicRegistry();
+const contentStore = new ContentStore(topicRegistry);
+
+/**
+ * Gets the global topic registry instance (for testing).
+ */
+export function getTopicRegistry(): TopicRegistry {
+  return topicRegistry;
+}
+
+/**
+ * Gets the global content store instance (for testing).
+ */
+export function getContentStore(): ContentStore {
+  return contentStore;
+}
 
 /**
  * Initializes the package loader and loads the R5 core package.
@@ -87,6 +109,16 @@ export async function loadIG(packageName: string, version: string): Promise<Load
 
   // Rebuild search index to include new package
   buildSearchIndex(loader, DEFAULT_SCOPE);
+
+  // Extract narrative/documentation content from the IG
+  try {
+    const narrativeChunks = extractIGNarrative(loader, packageName, version);
+    if (narrativeChunks.length > 0) {
+      contentStore.addBatch(narrativeChunks);
+    }
+  } catch {
+    // Non-fatal: IG narrative extraction is best-effort
+  }
 
   // Clear caches since new package may affect results
   ezfCache.clear();
@@ -159,6 +191,42 @@ export function getDatatypeIndex(): string {
   return datatypeIndexCache;
 }
 
+/** Documentation fields extracted from raw StructureDefinition elements. */
+export interface ElementDocumentation {
+  definition?: string;
+  comment?: string;
+  requirements?: string;
+  meaningWhenMissing?: string;
+}
+
+/**
+ * Gets documentation fields for a specific element from the raw StructureDefinition.
+ */
+export function getElementDocumentation(
+  resourceName: string,
+  fullPath: string
+): ElementDocumentation {
+  if (!loader) return {};
+
+  const sd = getStructureDefinition(loader, resourceName);
+  if (!sd) return {};
+
+  const snapshot = sd.snapshot as
+    | { element: Array<Record<string, unknown>> }
+    | undefined;
+  if (!snapshot?.element) return {};
+
+  const el = snapshot.element.find((e) => e.path === fullPath);
+  if (!el) return {};
+
+  const doc: ElementDocumentation = {};
+  if (el.definition && typeof el.definition === "string") doc.definition = el.definition;
+  if (el.comment && typeof el.comment === "string") doc.comment = el.comment;
+  if (el.requirements && typeof el.requirements === "string") doc.requirements = el.requirements;
+  if (el.meaningWhenMissing && typeof el.meaningWhenMissing === "string") doc.meaningWhenMissing = el.meaningWhenMissing;
+  return doc;
+}
+
 /**
  * Looks up an element by dot-path in a resource's EZF representation.
  */
@@ -194,13 +262,17 @@ export function lookupElement(
     return `Element "${elementPath}" not found in ${resourceName}`;
   }
 
-  return formatElement(found, resourceName, elementPath);
+  const fullPath = `${resourceName}.${elementPath}`;
+  const elemDocs = getElementDocumentation(resourceName, fullPath);
+
+  return formatElement(found, resourceName, elementPath, elemDocs);
 }
 
 function formatElement(
   el: EZFElement,
   resourceName: string,
-  path: string
+  path: string,
+  docs?: ElementDocumentation
 ): string {
   const lines: string[] = [];
   lines.push(`${resourceName}.${path}`);
@@ -235,7 +307,23 @@ function formatElement(
   }
 
   if (el.short) {
-    lines.push(`  Description: ${el.short}`);
+    lines.push(`  Short: ${el.short}`);
+  }
+
+  if (docs?.definition) {
+    lines.push(`  Definition: ${docs.definition}`);
+  }
+
+  if (docs?.comment) {
+    lines.push(`  Comment: ${docs.comment}`);
+  }
+
+  if (docs?.requirements) {
+    lines.push(`  Requirements: ${docs.requirements}`);
+  }
+
+  if (docs?.meaningWhenMissing) {
+    lines.push(`  When Missing: ${docs.meaningWhenMissing}`);
   }
 
   if (el.children && el.children.length > 0) {
@@ -509,6 +597,51 @@ export function createServer(): McpServer {
       const name = params.name as string;
       return {
         contents: [{ uri: uri.href, mimeType: "text/plain", text: getDatatypeEZF(name) }],
+      };
+    }
+  );
+
+  // ─── Documentation Resources ──────────────────────────────────
+
+  server.registerResource(
+    "fhir-guide-index",
+    "fhir://guide/index",
+    {
+      description: "Documentation topic hierarchy — all available guidance topics organized by category",
+      mimeType: "text/plain",
+    },
+    async (uri) => {
+      const index = topicRegistry.renderIndex();
+      const stats = contentStore.getStats();
+      const header = `# FHIR Documentation Guide\n\n${stats.chunkCount} content sections across ${stats.topicCount} topics\n\n`;
+      return {
+        contents: [{ uri: uri.href, mimeType: "text/plain", text: header + index }],
+      };
+    }
+  );
+
+  server.registerResource(
+    "fhir-guide-topic",
+    new ResourceTemplate("fhir://guide/{topicId}", { list: undefined }),
+    {
+      description: "Documentation content for a specific topic (e.g., 'exchange/search'). Use fhir://guide/index to see available topics.",
+      mimeType: "text/plain",
+    },
+    async (uri, params) => {
+      const topicId = decodeURIComponent(params.topicId as string);
+      const chunks = contentStore.getByTopic(topicId, true);
+      if (chunks.length === 0) {
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: "text/plain",
+            text: `No content found for topic "${topicId}". Use fhir://guide/index to see available topics.`,
+          }],
+        };
+      }
+      const text = formatTopicContent(topicId, chunks);
+      return {
+        contents: [{ uri: uri.href, mimeType: "text/plain", text }],
       };
     }
   );
@@ -907,7 +1040,144 @@ export function createServer(): McpServer {
     }
   );
 
+  server.registerTool(
+    "get_guidance",
+    {
+      description:
+        "Find documentation and guidance related to a FHIR artifact or topic. " +
+        "Returns relevant documentation sections from the FHIR spec, IGs, and other sources. " +
+        "Examples: get_guidance('Patient.gender'), get_guidance('CodeableConcept'), get_guidance('search').",
+      inputSchema: {
+        query: z.string().describe(
+          "Artifact name, element path, or topic to find guidance for " +
+          "(e.g., 'Patient', 'Patient.gender', 'CodeableConcept', 'search', 'terminology')"
+        ),
+        max_results: z.number().optional().describe("Max results to return (default 10)"),
+      },
+    },
+    async ({ query, max_results }) => {
+      try {
+        const limit = max_results ?? 10;
+        const results = getGuidance(query, limit);
+        if (results.length === 0) {
+          return {
+            content: [{ type: "text" as const, text: `No guidance found for "${query}". Content may not be loaded yet — try loading an IG first.` }],
+          };
+        }
+        const text = formatGuidanceResults(results);
+        return {
+          content: [{ type: "text" as const, text }],
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text" as const, text: `Error: ${message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
   return server;
+}
+
+/**
+ * Finds guidance content related to an artifact or topic query.
+ * Searches by reference index first, then falls back to keyword search.
+ */
+export function getGuidance(query: string, limit = 10): ContentChunk[] {
+  const results: ContentChunk[] = [];
+  const seen = new Set<string>();
+
+  // Try ref-based lookup first (exact artifact match)
+  const refResults = contentStore.getByRef(query);
+  for (const chunk of refResults) {
+    if (!seen.has(chunk.id)) {
+      results.push(chunk);
+      seen.add(chunk.id);
+    }
+  }
+
+  // Try topic-based lookup
+  const topicResults = contentStore.getByTopic(query, true);
+  for (const chunk of topicResults) {
+    if (!seen.has(chunk.id)) {
+      results.push(chunk);
+      seen.add(chunk.id);
+    }
+  }
+
+  // Fall back to keyword search
+  if (results.length < limit) {
+    const searchResults = contentStore.search(query);
+    for (const chunk of searchResults) {
+      if (!seen.has(chunk.id)) {
+        results.push(chunk);
+        seen.add(chunk.id);
+      }
+      if (results.length >= limit) break;
+    }
+  }
+
+  return results.slice(0, limit);
+}
+
+/**
+ * Formats guidance results for MCP tool output.
+ */
+function formatGuidanceResults(chunks: ContentChunk[]): string {
+  const lines: string[] = [`Found ${chunks.length} guidance section(s):\n`];
+
+  for (const chunk of chunks) {
+    lines.push(`### ${chunk.title}`);
+    lines.push(`Source: ${chunk.source.name}${chunk.source.url ? ` (${chunk.source.url})` : ""}`);
+    lines.push(`Topic: ${chunk.topicPath}`);
+    lines.push("");
+    lines.push(chunk.summary);
+    lines.push("");
+    // Include full body for first 3 results, summary only for the rest
+    if (chunks.indexOf(chunk) < 3 && chunk.body.length > chunk.summary.length) {
+      lines.push(chunk.body);
+      lines.push("");
+    }
+    lines.push("---");
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Formats content chunks for a topic resource view.
+ */
+function formatTopicContent(topicPath: string, chunks: ContentChunk[]): string {
+  const topic = topicRegistry.get(topicPath);
+  const lines: string[] = [];
+
+  if (topic) {
+    lines.push(`# ${topic.name}`);
+    lines.push(`${topic.description}\n`);
+  } else {
+    lines.push(`# ${topicPath}\n`);
+  }
+
+  lines.push(`${chunks.length} section(s)\n`);
+
+  // Sort by order within topic
+  const sorted = [...chunks].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+  for (const chunk of sorted) {
+    const heading = "#".repeat(Math.min(chunk.headingLevel ?? 2, 4));
+    lines.push(`${heading} ${chunk.title}`);
+    if (chunk.source.url) {
+      lines.push(`_Source: ${chunk.source.url}_`);
+    }
+    lines.push("");
+    lines.push(chunk.body);
+    lines.push("");
+  }
+
+  return lines.join("\n");
 }
 
 /**

@@ -38,6 +38,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@types/turndown": "^5.0.6",
     "tsx": "^4.21.0",
     "typescript": "^5.4.0",
     "vitest": "^2.0.0"
@@ -47,6 +48,7 @@
     "@types/lunr": "^2.3.7",
     "fhir-package-loader": "^2.2.3",
     "lunr": "^2.3.9",
+    "turndown": "^7.2.2",
     "zod": "^4.3.6"
   }
 }

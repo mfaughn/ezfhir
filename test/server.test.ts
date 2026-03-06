@@ -14,6 +14,7 @@ import {
   getConstraints,
   listIGs,
   getLoader,
+  getElementDocumentation,
 } from "../src/server.js";
 import { searchSpec } from "../src/pipeline/searchIndex.js";
 import { compareProfiles } from "../src/pipeline/sdDiff.js";
@@ -166,6 +167,37 @@ describe("MCP Server", () => {
       const result = lookupElement("Claim", "item.detail.subDetail.factor");
       expect(result).toContain("Claim.item.detail.subDetail.factor");
       expect(result).toContain("Type: decimal");
+    });
+
+    it("uses Short label instead of Description", () => {
+      const result = lookupElement("Patient", "gender");
+      expect(result).toContain("Short:");
+      expect(result).not.toContain("Description:");
+    });
+
+    it("includes Definition field from raw StructureDefinition", () => {
+      const result = lookupElement("Patient", "gender");
+      expect(result).toContain("Definition:");
+      // Patient.gender has a definition in the FHIR spec
+      expect(result).toMatch(/Definition: .+/);
+    });
+
+    it("includes Comment field when present", () => {
+      // Patient.gender has a comment about sex vs gender
+      const result = lookupElement("Patient", "gender");
+      expect(result).toContain("Comment:");
+    });
+
+    it("includes When Missing field when present", () => {
+      // Patient.active has meaningWhenMissing
+      const result = lookupElement("Patient", "active");
+      expect(result).toContain("When Missing:");
+    });
+
+    it("includes Requirements field when present", () => {
+      // Patient.contact.organization has requirements
+      const result = lookupElement("Patient", "contact.organization");
+      expect(result).toContain("Requirements:");
     });
   });
 
