@@ -6,5 +6,11 @@ export default defineConfig({
     include: ["test/**/*.test.ts"],
     exclude: ["test/benchmark/**", "test/eval/**"],
     testTimeout: 30000,
+    pool: "forks",
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
   },
 });

@@ -26,6 +26,18 @@ This file is the permanent log of sessions, decisions, blockers, and learnings. 
 
 ---
 
+## Maintenance Note - 2026-03-06
+
+### vitest config: pool changed to forks/singleFork
+
+The previous session froze because vitest worker threads (spawned as a pool of 4+) became orphaned when Claude Code aborted a test run. The orphaned workers spun at 100% CPU indefinitely, starving the container and wedging the Claude Code event loop.
+
+**Fix applied to `vitest.config.ts`:** Changed pool to `forks` with `singleFork: true`. Forked processes receive SIGHUP when their parent dies (worker threads don't), and single-fork means only one child process to manage instead of 4+. No meaningful speed impact for this project's test suite.
+
+Previous session context was lost due to the freeze — no handoff was written. Check `git log` for the last committed state.
+
+---
+
 <!--
 SESSION HANDOFF TEMPLATE (copy this for each handoff):
 

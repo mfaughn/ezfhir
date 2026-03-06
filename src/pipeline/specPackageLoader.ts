@@ -6,12 +6,9 @@
  * to avoid repeated downloads.
  */
 
-import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
-import { createWriteStream } from "fs";
-import { pipeline } from "stream/promises";
-import { createGunzip } from "zlib";
 
 /** Default cache directory for FHIR spec downloads. */
 const DEFAULT_CACHE_DIR = join(homedir(), ".fhir", "spec-cache");
@@ -41,32 +38,65 @@ function getVersionCacheDir(version: string): string {
 }
 
 /**
+ * Finds the directory containing HTML spec pages within the cache.
+ * The zip may extract to different subdirectory structures, so we
+ * search for the actual location of the HTML files.
+ */
+function findHtmlDir(baseDir: string): string | null {
+  // Check base directory first
+  try {
+    const files = readdirSync(baseDir);
+    if (files.some(f => f === "search.html" || f === "datatypes.html")) {
+      return baseDir;
+    }
+  } catch {
+    return null;
+  }
+
+  // Check known subdirectory patterns from fhir-spec.zip
+  const candidates = [
+    join(baseDir, "fhir-spec", "site"),
+    join(baseDir, "site"),
+    join(baseDir, "fhir-spec"),
+  ];
+
+  for (const candidate of candidates) {
+    if (!existsSync(candidate)) continue;
+    try {
+      const files = readdirSync(candidate);
+      if (files.some(f => f === "search.html" || f === "datatypes.html")) {
+        return candidate;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Checks if spec pages are cached for a given FHIR version.
  */
 export function isSpecCached(version: string): boolean {
   const dir = getVersionCacheDir(version);
   if (!existsSync(dir)) return false;
-
-  // Check for at least one HTML file
-  try {
-    const files = readdirSync(dir);
-    return files.some(f => f.endsWith(".html"));
-  } catch {
-    return false;
-  }
+  return findHtmlDir(dir) !== null;
 }
 
 /**
  * Downloads and extracts the FHIR spec package for a given version.
- * Returns the path to the cache directory containing the HTML files.
+ * Returns the path to the directory containing the HTML files.
  *
  * If already cached, returns immediately without re-downloading.
  */
 export async function downloadSpec(version: string): Promise<string> {
   const dir = getVersionCacheDir(version);
 
-  if (isSpecCached(version)) {
-    return dir;
+  // Check if already cached
+  const existingHtmlDir = findHtmlDir(dir);
+  if (existingHtmlDir) {
+    return existingHtmlDir;
   }
 
   const url = SPEC_URLS[version];
@@ -82,6 +112,7 @@ export async function downloadSpec(version: string): Promise<string> {
 
   // Download the zip file
   const zipPath = join(dir, "fhir-spec.zip");
+  console.error(`Downloading FHIR ${version} spec (~400MB)...`);
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to download FHIR spec from ${url}: ${response.status} ${response.statusText}`);
@@ -90,22 +121,27 @@ export async function downloadSpec(version: string): Promise<string> {
   // Write response to file
   const buffer = Buffer.from(await response.arrayBuffer());
   writeFileSync(zipPath, buffer);
+  console.error("Download complete, extracting...");
 
-  // Extract zip (using built-in Node.js unzip if available, otherwise shell)
+  // Extract zip
   await extractZip(zipPath, dir);
 
-  return dir;
+  const htmlDir = findHtmlDir(dir);
+  if (!htmlDir) {
+    throw new Error("Spec zip extracted but could not find HTML files");
+  }
+
+  return htmlDir;
 }
 
 /**
  * Extracts a zip file to a directory using the unzip command.
- * Node.js doesn't have built-in zip support, so we shell out.
  */
 async function extractZip(zipPath: string, destDir: string): Promise<void> {
   const { execSync } = await import("child_process");
   try {
     execSync(`unzip -o -q "${zipPath}" -d "${destDir}"`, {
-      timeout: 120000,
+      timeout: 300000, // 5 minutes for large zip
       stdio: "ignore",
     });
   } catch (error) {
@@ -117,13 +153,15 @@ async function extractZip(zipPath: string, destDir: string): Promise<void> {
 
 /**
  * Lists all available HTML page files in the cached spec directory.
+ * Only returns top-level HTML files (not in subdirectories).
  */
 export function listSpecPages(version: string): string[] {
   const dir = getVersionCacheDir(version);
-  if (!existsSync(dir)) return [];
+  const htmlDir = findHtmlDir(dir);
+  if (!htmlDir) return [];
 
   try {
-    return readdirSync(dir)
+    return readdirSync(htmlDir)
       .filter(f => f.endsWith(".html"))
       .sort();
   } catch {
@@ -136,7 +174,11 @@ export function listSpecPages(version: string): string[] {
  * Returns null if the page doesn't exist.
  */
 export function readSpecPage(version: string, filename: string): string | null {
-  const filePath = join(getVersionCacheDir(version), filename);
+  const dir = getVersionCacheDir(version);
+  const htmlDir = findHtmlDir(dir);
+  if (!htmlDir) return null;
+
+  const filePath = join(htmlDir, filename);
   if (!existsSync(filePath)) return null;
 
   try {
