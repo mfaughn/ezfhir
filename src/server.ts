@@ -30,6 +30,16 @@ import { TopicRegistry } from "./content/topicRegistry.js";
 import { ContentStore } from "./content/contentStore.js";
 import type { ContentChunk } from "./content/types.js";
 import { extractIGNarrative } from "./pipeline/igNarrativeExtractor.js";
+import {
+  downloadSpec,
+  isSpecCached,
+  listSpecPages,
+  readSpecPage,
+} from "./pipeline/specPackageLoader.js";
+import {
+  extractPageContent,
+  PRIORITY_PAGES,
+} from "./pipeline/specPageExtractor.js";
 
 export const VERSION = "0.1.0";
 
@@ -73,7 +83,8 @@ export function getContentStore(): ContentStore {
 }
 
 /**
- * Initializes the package loader and loads the R5 core package.
+ * Initializes the package loader, loads the R5 core package, and populates
+ * the content store with documentation from the core package and spec pages.
  */
 export async function initLoader(): Promise<FPLPackageLoader> {
   if (loader) return loader;
@@ -82,7 +93,64 @@ export async function initLoader(): Promise<FPLPackageLoader> {
   const count = loader.findResourceInfos("*", { scope: DEFAULT_SCOPE }).length;
   loadedPackages.push({ name: DEFAULT_SCOPE, version: DEFAULT_VERSION, artifactCount: count });
   buildSearchIndex(loader, DEFAULT_SCOPE);
+
+  // Extract narrative content from core package resources (ValueSets, CodeSystems, etc.)
+  try {
+    const coreChunks = extractIGNarrative(loader, DEFAULT_SCOPE, DEFAULT_VERSION);
+    if (coreChunks.length > 0) {
+      contentStore.addBatch(coreChunks);
+      console.error(`Loaded ${coreChunks.length} content sections from core package`);
+    }
+  } catch (err) {
+    console.error("Warning: failed to extract core package narrative:", err);
+  }
+
+  // Load FHIR spec HTML pages (async, best-effort)
+  loadSpecPages(DEFAULT_VERSION).catch((err) => {
+    console.error("Warning: failed to load spec pages:", err);
+  });
+
   return loader;
+}
+
+/**
+ * Downloads (if needed) and processes FHIR specification HTML pages,
+ * feeding the content into the global content store.
+ */
+export async function loadSpecPages(fhirVersion: string): Promise<number> {
+  const specDir = await downloadSpec(fhirVersion);
+
+  const pages = listSpecPages(fhirVersion);
+  if (pages.length === 0) {
+    console.error("No spec pages found after download");
+    return 0;
+  }
+
+  // Process priority pages first, then the rest
+  const prioritySet = new Set(PRIORITY_PAGES);
+  const ordered = [
+    ...pages.filter(p => prioritySet.has(p)),
+    ...pages.filter(p => !prioritySet.has(p)),
+  ];
+
+  let totalChunks = 0;
+  for (const page of ordered) {
+    const html = readSpecPage(fhirVersion, page);
+    if (!html) continue;
+
+    try {
+      const chunks = extractPageContent(html, page, fhirVersion);
+      if (chunks.length > 0) {
+        contentStore.addBatch(chunks);
+        totalChunks += chunks.length;
+      }
+    } catch {
+      // Skip pages that fail to process — non-fatal
+    }
+  }
+
+  console.error(`Loaded ${totalChunks} content sections from ${ordered.length} spec pages`);
+  return totalChunks;
 }
 
 /**
@@ -652,26 +720,50 @@ export function createServer(): McpServer {
     "search_spec",
     {
       description:
-        "Search the FHIR specification for resources, datatypes, elements, and search parameters. " +
-        "Returns ranked results by relevance. Use this to discover what FHIR resources are available.",
+        "Search the FHIR specification for resources, datatypes, elements, search parameters, " +
+        "and documentation. Returns ranked results by relevance with both structural definitions " +
+        "and guidance content. Use this to discover what's available in the FHIR spec.",
       inputSchema: {
-        query: z.string().describe("Search query (e.g., 'Patient', 'blood pressure', 'medication')"),
+        query: z.string().describe("Search query (e.g., 'Patient', 'blood pressure', 'medication', 'search modifiers')"),
         limit: z.number().optional().describe("Max results to return (default 10)"),
       },
     },
     async ({ query, limit }) => {
       try {
-        const results = searchSpec(query, limit);
-        if (results.length === 0) {
+        const maxResults = limit ?? 10;
+
+        // Structural results from the lunr index
+        const structuralResults = searchSpec(query, maxResults);
+
+        // Documentation results from the content store
+        const docResults = contentStore.search(query).slice(0, 5);
+
+        if (structuralResults.length === 0 && docResults.length === 0) {
           return {
             content: [{ type: "text" as const, text: `No results found for "${query}"` }],
           };
         }
-        const text = results
-          .map((r, i) => `${i + 1}. ${r.name} (${r.type}) — ${r.description.slice(0, 100)}`)
-          .join("\n");
+
+        const lines: string[] = [];
+
+        if (structuralResults.length > 0) {
+          lines.push("**Definitions:**");
+          for (let i = 0; i < structuralResults.length; i++) {
+            const r = structuralResults[i];
+            lines.push(`${i + 1}. ${r.name} (${r.type}) — ${r.description.slice(0, 100)}`);
+          }
+        }
+
+        if (docResults.length > 0) {
+          if (lines.length > 0) lines.push("");
+          lines.push("**Documentation:**");
+          for (const d of docResults) {
+            lines.push(`- ${d.title} [${d.topicPath}] — ${d.summary.slice(0, 100)}`);
+          }
+        }
+
         return {
-          content: [{ type: "text" as const, text }],
+          content: [{ type: "text" as const, text: lines.join("\n") }],
         };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -1083,43 +1175,74 @@ export function createServer(): McpServer {
 
 /**
  * Finds guidance content related to an artifact or topic query.
- * Searches by reference index first, then falls back to keyword search.
+ *
+ * Results are ranked by relevance:
+ * 1. Chunks whose title matches the query (the chunk *about* the artifact)
+ * 2. Chunks from matching topics
+ * 3. Other chunks that reference the artifact
+ * 4. Keyword search matches
  */
 export function getGuidance(query: string, limit = 10): ContentChunk[] {
-  const results: ContentChunk[] = [];
   const seen = new Set<string>();
+  const ranked: Array<{ chunk: ContentChunk; score: number }> = [];
 
-  // Try ref-based lookup first (exact artifact match)
+  const queryLower = query.toLowerCase();
+
+  // For element path queries like "Patient.gender", also look up the resource
+  const dotIndex = query.indexOf(".");
+  const resourceFromPath = dotIndex > 0 ? query.slice(0, dotIndex) : null;
+
+  // Ref-based lookup
   const refResults = contentStore.getByRef(query);
-  for (const chunk of refResults) {
-    if (!seen.has(chunk.id)) {
-      results.push(chunk);
-      seen.add(chunk.id);
+
+  // If querying an element path, also include results for the parent resource
+  if (resourceFromPath) {
+    const resourceRefs = contentStore.getByRef(resourceFromPath);
+    for (const chunk of resourceRefs) {
+      if (!refResults.some(r => r.id === chunk.id)) {
+        refResults.push(chunk);
+      }
     }
   }
+  for (const chunk of refResults) {
+    if (seen.has(chunk.id)) continue;
+    seen.add(chunk.id);
 
-  // Try topic-based lookup
+    // Score: title match gets highest priority
+    let score = 1;
+    const titleLower = chunk.title.toLowerCase();
+    if (titleLower === queryLower) {
+      score = 100; // Exact title match — this IS the thing being asked about
+    } else if (titleLower.includes(queryLower)) {
+      score = 50; // Partial title match
+    } else if (resourceFromPath && titleLower === resourceFromPath.toLowerCase()) {
+      score = 80; // Element query → parent resource's own chunk ranks high
+    }
+    ranked.push({ chunk, score });
+  }
+
+  // Topic-based lookup
   const topicResults = contentStore.getByTopic(query, true);
   for (const chunk of topicResults) {
-    if (!seen.has(chunk.id)) {
-      results.push(chunk);
-      seen.add(chunk.id);
-    }
+    if (seen.has(chunk.id)) continue;
+    seen.add(chunk.id);
+    ranked.push({ chunk, score: 30 }); // Topic matches rank above generic refs
   }
 
-  // Fall back to keyword search
-  if (results.length < limit) {
+  // Keyword search (if we don't have enough results yet)
+  if (ranked.length < limit) {
     const searchResults = contentStore.search(query);
     for (const chunk of searchResults) {
-      if (!seen.has(chunk.id)) {
-        results.push(chunk);
-        seen.add(chunk.id);
-      }
-      if (results.length >= limit) break;
+      if (seen.has(chunk.id)) continue;
+      seen.add(chunk.id);
+      ranked.push({ chunk, score: 5 });
+      if (ranked.length >= limit * 2) break; // Don't accumulate too many
     }
   }
 
-  return results.slice(0, limit);
+  // Sort by score descending, then return top results
+  ranked.sort((a, b) => b.score - a.score);
+  return ranked.slice(0, limit).map(r => r.chunk);
 }
 
 /**

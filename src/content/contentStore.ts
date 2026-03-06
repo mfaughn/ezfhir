@@ -61,7 +61,9 @@ export class ContentStore {
    * Retrieve all chunks belonging to a topic.
    *
    * When `includeSubtopics` is true, also returns chunks from all
-   * descendant topics as determined by the TopicRegistry.
+   * descendant topics. Uses both the TopicRegistry subtree and prefix
+   * matching on the topic index to catch dynamically-created subtopics
+   * that aren't explicitly registered.
    */
   getByTopic(topicPath: string, includeSubtopics?: boolean): ContentChunk[] {
     if (!includeSubtopics) {
@@ -71,18 +73,29 @@ export class ContentStore {
         .filter((c): c is ContentChunk => c !== undefined);
     }
 
+    // Collect from registered subtree
     const subtree = this.registry.getSubtree(topicPath);
-    const paths = subtree.map((t) => t.path);
+    const registeredPaths = new Set(subtree.map((t) => t.path));
+
+    // Also collect from topic index via prefix matching
+    const prefix = topicPath + "/";
     const result: ContentChunk[] = [];
-    for (const path of paths) {
-      const ids = this.topicIndex.get(path) ?? [];
-      for (const id of ids) {
-        const chunk = this.chunks.get(id);
-        if (chunk) {
-          result.push(chunk);
+    const seen = new Set<string>();
+
+    for (const [path, ids] of this.topicIndex) {
+      if (path === topicPath || registeredPaths.has(path) || path.startsWith(prefix)) {
+        for (const id of ids) {
+          if (!seen.has(id)) {
+            const chunk = this.chunks.get(id);
+            if (chunk) {
+              result.push(chunk);
+              seen.add(id);
+            }
+          }
         }
       }
     }
+
     return result;
   }
 

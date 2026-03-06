@@ -188,6 +188,58 @@ function makeSummary(description: string): string {
   return (lastSpace > 50 ? truncated.slice(0, lastSpace) : truncated) + "...";
 }
 
+/**
+ * Adds a self-reference to the refs array so the chunk is findable
+ * when someone queries for this specific artifact by name.
+ */
+function addSelfRef(
+  refs: ContentRef[],
+  resourceType: string,
+  json: Record<string, unknown>
+): void {
+  const name = (json.name as string) ?? (json.id as string);
+  if (!name) return;
+
+  const seen = new Set(refs.map(r => `${r.type}:${r.target}`));
+
+  switch (resourceType) {
+    case "StructureDefinition": {
+      const kind = json.kind as string | undefined;
+      if (kind === "resource" || kind === "logical") {
+        const type = (json.type as string) ?? name;
+        if (!seen.has(`resource:${type}`)) {
+          refs.push({ type: "resource", target: type });
+        }
+      } else if (kind === "complex-type" || kind === "primitive-type") {
+        if (!seen.has(`datatype:${name}`)) {
+          refs.push({ type: "datatype", target: name });
+        }
+      }
+      break;
+    }
+    case "ValueSet":
+      if (!seen.has(`valueset:${name}`)) {
+        refs.push({ type: "valueset", target: name });
+      }
+      break;
+    case "CodeSystem":
+      if (!seen.has(`codesystem:${name}`)) {
+        refs.push({ type: "codesystem", target: name });
+      }
+      break;
+    case "SearchParameter":
+      if (!seen.has(`searchparam:${name}`)) {
+        refs.push({ type: "searchparam", target: name });
+      }
+      break;
+    case "OperationDefinition":
+      if (!seen.has(`operation:${name}`)) {
+        refs.push({ type: "operation", target: name });
+      }
+      break;
+  }
+}
+
 /** Resource types we extract narrative content from. */
 const EXTRACTABLE_TYPES = [
   "StructureDefinition",
@@ -239,6 +291,9 @@ export function extractIGNarrative(
       const summary = makeSummary(description || body.slice(0, MAX_SUMMARY_LENGTH));
       const refs = extractRefs(body);
       const keywords = extractKeywords(name, description || body);
+
+      // Add self-reference so the chunk is findable by artifact name
+      addSelfRef(refs, resourceType, json);
 
       const chunk: ContentChunk = {
         id: `ig:${packageName}:${resourceType}:${name}`,
