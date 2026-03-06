@@ -21,6 +21,12 @@ blueprint.md
 spec.md
 DEPENDENCIES.md
 CLAUDE.md
+ARCHITECTURE.md
+additional_notes.md
+docs/
+
+# CI/CD
+.github/
 
 # Dev artifacts
 .claude/

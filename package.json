@@ -6,8 +6,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "ezfhir": "dist/index.js",
-    "ezfhir-generate": "dist/pipeline/generate.js"
+    "ezfhir": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -18,7 +17,7 @@
     "benchmark": "vitest run --config vitest.benchmark.config.ts",
     "eval": "npx tsx test/eval/run-eval.ts",
     "test:eval": "vitest run --config vitest.eval.config.ts",
-    "generate": "node dist/pipeline/generate.js"
+    "generate": "echo 'Generate pipeline not yet implemented'"
   },
   "keywords": [
     "fhir",
@@ -28,6 +27,11 @@
     "interoperability",
     "hl7"
   ],
+  "author": "mfaughn",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mfaughn/ezfhir.git"
+  },
   "license": "MIT",
   "engines": {
     "node": ">=18"
