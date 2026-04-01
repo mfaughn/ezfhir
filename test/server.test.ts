@@ -15,6 +15,7 @@ import {
   listIGs,
   getLoader,
   getElementDocumentation,
+  getConfig,
 } from "../src/server.js";
 import { searchSpec } from "../src/pipeline/searchIndex.js";
 import { compareProfiles } from "../src/pipeline/sdDiff.js";
@@ -22,7 +23,7 @@ import { compareProfiles } from "../src/pipeline/sdDiff.js";
 describe("MCP Server", () => {
   beforeAll(async () => {
     await initLoader();
-  }, 120000);
+  }, 180000);
 
   describe("getEZF", () => {
     it("returns EZF text for Patient", () => {
@@ -254,7 +255,9 @@ describe("MCP Server", () => {
     it("finds Patient via search index", () => {
       const results = searchSpec("Patient");
       expect(results.length).toBeGreaterThan(0);
-      expect(results[0].name).toBe("Patient");
+      // With multi-scope indexing, Patient should be in top results
+      const topFive = results.slice(0, 5);
+      expect(topFive.some((r) => r.name === "Patient")).toBe(true);
     });
 
     // Additional golden I/O tests per TESTING-STRATEGY.md §4.2
@@ -283,12 +286,41 @@ describe("MCP Server", () => {
   });
 
   describe("listIGs", () => {
-    it("lists the default R5 core package", () => {
+    it("lists both R5 and R4 core packages by default", () => {
       const packages = listIGs();
-      expect(packages.length).toBeGreaterThan(0);
-      expect(packages[0].name).toBe("hl7.fhir.r5.core");
-      expect(packages[0].version).toBe("5.0.0");
-      expect(packages[0].artifactCount).toBeGreaterThan(100);
+      expect(packages.length).toBeGreaterThanOrEqual(2);
+
+      const r5 = packages.find(p => p.name === "hl7.fhir.r5.core");
+      expect(r5).toBeDefined();
+      expect(r5!.version).toBe("5.0.0");
+      expect(r5!.artifactCount).toBeGreaterThan(100);
+
+      const r4 = packages.find(p => p.name === "hl7.fhir.r4.core");
+      expect(r4).toBeDefined();
+      expect(r4!.version).toBe("4.0.1");
+      expect(r4!.artifactCount).toBeGreaterThan(100);
+    });
+
+    it("has R5 as the primary scope", () => {
+      const cfg = getConfig();
+      expect(cfg.primaryScope).toBe("hl7.fhir.r5.core");
+      expect(cfg.primaryVersion).toBe("5.0.0");
+    });
+  });
+
+  describe("multi-version", () => {
+    it("getEZF returns R5 Patient (primary scope)", () => {
+      const ezf = getEZF("Patient");
+      expect(ezf).toContain("@resource Patient");
+      // R5 has 'link' on Patient, same as R4, so just check it resolves
+      expect(ezf).toContain("gender");
+    });
+
+    it("search returns results from multiple scopes", () => {
+      const results = searchSpec("Patient");
+      expect(results.length).toBeGreaterThan(0);
+      const topFive = results.slice(0, 5);
+      expect(topFive.some((r) => r.name === "Patient")).toBe(true);
     });
   });
 

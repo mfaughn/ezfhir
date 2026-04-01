@@ -40,11 +40,17 @@ import {
   extractPageContent,
   PRIORITY_PAGES,
 } from "./pipeline/specPageExtractor.js";
+import { loadConfig, type EzfhirConfig } from "./config.js";
+import {
+  isPrereleaseVersion,
+  isPrereleaseStale,
+  invalidatePackageCache,
+} from "./pipeline/packageFreshness.js";
 
 export const VERSION = "0.1.0";
 
-const DEFAULT_SCOPE = "hl7.fhir.r5.core";
-const DEFAULT_VERSION = "5.0.0";
+/** Runtime configuration — initialized by initLoader(). */
+let config: EzfhirConfig = loadConfig();
 
 /** Cache of serialized EZF text per resource name. */
 const ezfCache = new Map<string, string>();
@@ -83,20 +89,27 @@ export function getContentStore(): ContentStore {
 }
 
 /**
- * Initializes the package loader, loads the R5 core package, and populates
- * the content store with documentation from the core package and spec pages.
+ * Initializes the package loader, loads configured startup packages, and populates
+ * the content store with documentation from the primary package and spec pages.
  */
 export async function initLoader(): Promise<FPLPackageLoader> {
   if (loader) return loader;
+  config = loadConfig();
   loader = await createPackageLoader();
-  await loadPackage(loader, DEFAULT_SCOPE, DEFAULT_VERSION);
-  const count = loader.findResourceInfos("*", { scope: DEFAULT_SCOPE }).length;
-  loadedPackages.push({ name: DEFAULT_SCOPE, version: DEFAULT_VERSION, artifactCount: count });
-  buildSearchIndex(loader, DEFAULT_SCOPE);
 
-  // Extract narrative content from core package resources (ValueSets, CodeSystems, etc.)
+  // Load all startup packages
+  for (const pkg of config.startupPackages) {
+    await loadPackage(loader, pkg.name, pkg.version);
+    const count = loader.findResourceInfos("*", { scope: pkg.name }).length;
+    loadedPackages.push({ name: pkg.name, version: pkg.version, artifactCount: count });
+  }
+
+  // Build search index across all loaded scopes
+  buildSearchIndex(loader, loadedPackages.map(p => p.name));
+
+  // Extract narrative content from primary package only
   try {
-    const coreChunks = extractIGNarrative(loader, DEFAULT_SCOPE, DEFAULT_VERSION);
+    const coreChunks = extractIGNarrative(loader, config.primaryScope, config.primaryVersion);
     if (coreChunks.length > 0) {
       contentStore.addBatch(coreChunks);
       console.error(`Loaded ${coreChunks.length} content sections from core package`);
@@ -105,8 +118,8 @@ export async function initLoader(): Promise<FPLPackageLoader> {
     console.error("Warning: failed to extract core package narrative:", err);
   }
 
-  // Load FHIR spec HTML pages (async, best-effort)
-  loadSpecPages(DEFAULT_VERSION).catch((err) => {
+  // Load FHIR spec HTML pages for primary version (async, best-effort)
+  loadSpecPages(config.primaryVersion).catch((err) => {
     console.error("Warning: failed to load spec pages:", err);
   });
 
@@ -161,7 +174,15 @@ export function getLoader(): FPLPackageLoader | null {
 }
 
 /**
+ * Gets the current config (for testing).
+ */
+export function getConfig(): EzfhirConfig {
+  return config;
+}
+
+/**
  * Loads an additional IG package into the server.
+ * For pre-release versions, checks freshness against the registry first.
  */
 export async function loadIG(packageName: string, version: string): Promise<LoadedPackage> {
   if (!loader) throw new Error("Loader not initialized");
@@ -170,13 +191,26 @@ export async function loadIG(packageName: string, version: string): Promise<Load
   const existing = loadedPackages.find(p => p.name === packageName && p.version === version);
   if (existing) return existing;
 
+  // For pre-release versions, check if cached package is stale
+  if (isPrereleaseVersion(version)) {
+    try {
+      const stale = await isPrereleaseStale(packageName, version);
+      if (stale) {
+        console.error(`Pre-release package ${packageName}@${version} is stale, invalidating cache`);
+        invalidatePackageCache(packageName, version);
+      }
+    } catch {
+      // Freshness check is best-effort
+    }
+  }
+
   await loadPackage(loader, packageName, version);
   const count = loader.findResourceInfos("*", { scope: packageName }).length;
   const pkg: LoadedPackage = { name: packageName, version, artifactCount: count };
   loadedPackages.push(pkg);
 
-  // Rebuild search index to include new package
-  buildSearchIndex(loader, DEFAULT_SCOPE);
+  // Rebuild search index across ALL loaded scopes (fixes bug where only primary was indexed)
+  buildSearchIndex(loader, loadedPackages.map(p => p.name));
 
   // Extract narrative/documentation content from the IG
   try {
@@ -212,11 +246,11 @@ export function getEZF(resourceName: string): string {
 
   if (!loader) throw new Error("Loader not initialized");
 
-  const sd = getStructureDefinition(loader, resourceName);
+  const sd = getStructureDefinition(loader, resourceName, config.primaryScope);
   if (!sd) throw new Error(`Resource "${resourceName}" not found`);
 
-  const searchParams = extractSearchParams(loader, resourceName, DEFAULT_SCOPE);
-  const operations = extractOperations(loader, resourceName, DEFAULT_SCOPE);
+  const searchParams = extractSearchParams(loader, resourceName, config.primaryScope);
+  const operations = extractOperations(loader, resourceName, config.primaryScope);
   const ezfText = serialize(sd, { searchParams, operations });
   ezfCache.set(`resource:${resourceName}`, ezfText);
   return ezfText;
@@ -231,7 +265,7 @@ export function getDatatypeEZF(datatypeName: string): string {
 
   if (!loader) throw new Error("Loader not initialized");
 
-  const sd = getStructureDefinition(loader, datatypeName);
+  const sd = getStructureDefinition(loader, datatypeName, config.primaryScope);
   if (!sd) throw new Error(`Datatype "${datatypeName}" not found`);
 
   const ezfText = serialize(sd);
@@ -245,7 +279,7 @@ export function getDatatypeEZF(datatypeName: string): string {
 export function getResourceIndex(): string {
   if (resourceIndexCache) return resourceIndexCache;
   if (!loader) throw new Error("Loader not initialized");
-  resourceIndexCache = generateResourceIndex(loader, DEFAULT_SCOPE, DEFAULT_VERSION);
+  resourceIndexCache = generateResourceIndex(loader, config.primaryScope, config.primaryVersion);
   return resourceIndexCache;
 }
 
@@ -255,7 +289,7 @@ export function getResourceIndex(): string {
 export function getDatatypeIndex(): string {
   if (datatypeIndexCache) return datatypeIndexCache;
   if (!loader) throw new Error("Loader not initialized");
-  datatypeIndexCache = generateDatatypeIndex(loader, DEFAULT_SCOPE);
+  datatypeIndexCache = generateDatatypeIndex(loader, config.primaryScope);
   return datatypeIndexCache;
 }
 
@@ -416,7 +450,7 @@ export function getExamples(resourceName: string, count = 5): ExampleInstance[] 
 
   // findResourceInfos with type filter matches by resourceType in the package
   const infos = loader.findResourceInfos("*", {
-    scope: DEFAULT_SCOPE,
+    scope: config.primaryScope,
   });
 
   const examples: ExampleInstance[] = [];
@@ -450,7 +484,7 @@ export function getSearchParams(resourceName: string): SearchParamInfo[] {
 
   const spInfos = loader.findResourceInfos("*", {
     type: ["SearchParameter"],
-    scope: DEFAULT_SCOPE,
+    scope: config.primaryScope,
   });
 
   const results: SearchParamInfo[] = [];
@@ -458,7 +492,7 @@ export function getSearchParams(resourceName: string): SearchParamInfo[] {
     if (!info.name) continue;
     const sp = loader.findResourceJSON(info.name, {
       type: ["SearchParameter"],
-      scope: DEFAULT_SCOPE,
+      scope: config.primaryScope,
     }) as Record<string, unknown> | undefined;
     if (!sp) continue;
 

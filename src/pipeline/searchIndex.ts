@@ -3,6 +3,7 @@
  *
  * Builds a lunr.js index over resource names, descriptions, element paths,
  * search params, and operations for fast full-text search.
+ * Supports indexing across multiple scopes (e.g., R4 + R5).
  */
 
 import lunr from "lunr";
@@ -28,12 +29,12 @@ let index: lunr.Index | null = null;
 const docMap = new Map<string, IndexDoc>();
 
 /**
- * Builds the search index from a loaded FHIR package.
+ * Collects IndexDoc entries from a single scope.
  */
-export function buildSearchIndex(
+function collectDocsForScope(
   loader: FPLPackageLoader,
   scope: string
-): void {
+): IndexDoc[] {
   const docs: IndexDoc[] = [];
 
   const infos = loader.findResourceInfos("*", {
@@ -89,8 +90,9 @@ export function buildSearchIndex(
     const name = sd.name as string;
     const paramNames = searchParamsByResource.get(name) || [];
 
+    // Use composite ID to avoid collisions between scopes
     const doc: IndexDoc = {
-      id: name,
+      id: `${scope}::${name}`,
       name,
       kind,
       description: ((sd.description as string) || "").slice(0, 200),
@@ -99,6 +101,29 @@ export function buildSearchIndex(
     };
 
     docs.push(doc);
+  }
+
+  return docs;
+}
+
+/**
+ * Builds the search index from one or more loaded FHIR packages.
+ */
+export function buildSearchIndex(
+  loader: FPLPackageLoader,
+  scopes: string | string[]
+): void {
+  const scopeList = Array.isArray(scopes) ? scopes : [scopes];
+  const allDocs: IndexDoc[] = [];
+
+  docMap.clear();
+
+  for (const scope of scopeList) {
+    const docs = collectDocsForScope(loader, scope);
+    allDocs.push(...docs);
+  }
+
+  for (const doc of allDocs) {
     docMap.set(doc.id, doc);
   }
 
@@ -109,7 +134,7 @@ export function buildSearchIndex(
     this.field("elements", { boost: 1 });
     this.field("searchParams", { boost: 2 });
 
-    for (const doc of docs) {
+    for (const doc of allDocs) {
       this.add(doc);
     }
   });
@@ -118,6 +143,7 @@ export function buildSearchIndex(
 /**
  * Searches the spec index.
  * Returns up to `limit` results sorted by relevance.
+ * Deduplicates results that appear in multiple scopes (keeps highest scoring).
  */
 export function searchSpec(query: string, limit = 10): SearchResult[] {
   if (!index) throw new Error("Search index not built. Call buildSearchIndex first.");
@@ -134,13 +160,23 @@ export function searchSpec(query: string, limit = 10): SearchResult[] {
     }
   }
 
-  return results.slice(0, limit).map((r) => {
+  // Deduplicate by resource name, keeping the highest score
+  const seen = new Map<string, SearchResult>();
+  for (const r of results) {
     const doc = docMap.get(r.ref)!;
-    return {
-      name: doc.name,
-      type: doc.kind,
-      description: doc.description,
-      score: r.score,
-    };
-  });
+    const existing = seen.get(doc.name);
+    if (!existing || r.score > existing.score) {
+      seen.set(doc.name, {
+        name: doc.name,
+        type: doc.kind,
+        description: doc.description,
+        score: r.score,
+      });
+    }
+  }
+
+  // Sort by score descending and apply limit
+  return Array.from(seen.values())
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
 }
